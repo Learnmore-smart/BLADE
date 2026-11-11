@@ -23,6 +23,7 @@ import {
   emitRuntimeCounterShield, reconstructSourceMap, scoreStructuralAnomaly,
 } from "./recovery/canonical.mjs";
 import { createRequire } from "node:module";
+import { createHash } from "node:crypto";
 
 const VERSION = createRequire(import.meta.url)("../package.json").version;
 
@@ -218,6 +219,8 @@ function main() {
   report.input = input;
   report.output = output;
   report.format = kind;
+  report.inputSha256 = createHash("sha256").update(buf).digest("hex");
+  report.inputSize = buf.length;
 
   // Signature-free anomaly scoring — surfaces structures typical of BLA even
   // when no known signature matches (future/renamed variants).
