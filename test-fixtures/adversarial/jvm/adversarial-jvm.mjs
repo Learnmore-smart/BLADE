@@ -145,8 +145,8 @@ const simpleBody = (thisIdx = 2, superIdx = 4, attrs = []) => body({ thisIdx, su
     E.utf8("Detector.java"),                         // #9
   ]);
   F["c0-marker-string-in-cp.class"] = {
-    buffer: assemble(entries, simpleBody()), expect: "FALSE-POSITIVE-CUT",
-    meta: "legit Utf8 #5 embeds 'BLA_JVM_SHIELD_V1' mid-CP; trailer check cuts at first occurrence",
+    buffer: assemble(entries, simpleBody()), expect: "UNCHANGED",
+    meta: "legit Utf8 #5 embeds 'BLA_JVM_SHIELD_V1' mid-CP; trailer anchor requires decoy structure, not a bare byte match",
   };
 }
 
@@ -165,7 +165,7 @@ const simpleBody = (thisIdx = 2, superIdx = 4, attrs = []) => body({ thisIdx, su
     E.utf8("SecConfig.java"),                        // #10
   ]);
   F["c1a-marker-mid-cp-nontail.class"] = {
-    buffer: assemble(entries, simpleBody()), expect: "PASS",
+    buffer: assemble(entries, simpleBody()), expect: "UNCHANGED",
     meta: "marker match at CP #5 (entries[4]); NameAndType #7 + Methodref #8 follow -> every(tag===1) fails, no cut",
   };
 }
@@ -185,7 +185,7 @@ const simpleBody = (thisIdx = 2, superIdx = 4, attrs = []) => body({ thisIdx, su
     E.utf8("WebFilter.java"),                        // #10
   ]);
   F["c1b-marker-utf8-tail.class"] = {
-    buffer: assemble(entries, simpleBody()), expect: "FALSE-POSITIVE-CUT",
+    buffer: assemble(entries, simpleBody()), expect: "UNCHANGED",
     meta: "legit 'BLACKLIST_ENDPOINT' at CP #5 (entries[4]); tail is all-Utf8 -> cut deletes legit CP #5..#10",
   };
 }
@@ -200,7 +200,7 @@ const simpleBody = (thisIdx = 2, superIdx = 4, attrs = []) => body({ thisIdx, su
   ]);
   const { original, hardened, firstDecoyCpIndex } = blaHarden(entries, simpleBody());
   F["c1c-hardened-legit-marker.class"] = {
-    buffer: hardened, expect: "FALSE-POSITIVE-CUT", original,
+    buffer: hardened, expect: "PASS", original,
     meta: `legit 'canaryReleaseEndpoint' at CP #5; BLA decoys at #${firstDecoyCpIndex}+; cut lands on legit #5 -> legit CP lost`,
   };
 }
@@ -214,7 +214,7 @@ const simpleBody = (thisIdx = 2, superIdx = 4, attrs = []) => body({ thisIdx, su
   ]);
   const b = body({ thisIdx: 2, superIdx: 4, attrs: [{ name: 5, info: Buffer.from("known markers: [BLA-NATIVE-SHIELD-V1], BLA_JVM_SHIELD_V1, [BLA-DEX-SHIELD-V1]", "utf8") }] });
   F["c0b-marker-in-attribute.class"] = {
-    buffer: assemble(entries, b), expect: "FALSE-POSITIVE-CUT",
+    buffer: assemble(entries, b), expect: "UNCHANGED",
     meta: "attribute payload legitimately lists marker strings; cutAtMarker truncates mid-attribute",
   };
 }
@@ -228,7 +228,7 @@ const simpleBody = (thisIdx = 2, superIdx = 4, attrs = []) => body({ thisIdx, su
     E.utf8("Code"), E.utf8("NetCfg.java"),
   ]);
   F["c1d-transport-endpoint-tail.class"] = {
-    buffer: assemble(entries, simpleBody()), expect: "FALSE-POSITIVE-CUT",
+    buffer: assemble(entries, simpleBody()), expect: "UNCHANGED",
     meta: "legit 'TRANSPORT_ENDPOINT=wss://...' at CP #5 still matches anchored regex; all-Utf8 tail -> legit CP #5..#10 cut",
   };
 }
@@ -242,7 +242,7 @@ const simpleBody = (thisIdx = 2, superIdx = 4, attrs = []) => body({ thisIdx, su
   ]);
   const { original, hardened, firstDecoyCpIndex } = blaHarden(entries, simpleBody());
   F["c1e-hardened-legit-canary-str.class"] = {
-    buffer: hardened, expect: "FALSE-POSITIVE-CUT", original,
+    buffer: hardened, expect: "PASS", original,
     meta: `legit 'PROTECTED_CANARY_CREDENTIAL=realKey' at CP #5; decoys at #${firstDecoyCpIndex}+; cut lands on legit #5`,
   };
 }
@@ -277,7 +277,7 @@ const simpleBody = (thisIdx = 2, superIdx = 4, attrs = []) => body({ thisIdx, su
     E.utf8("Code"), E.utf8("App.java"),
   ]);
   F["c2a-decoys-then-nonutf8.class"] = {
-    buffer: assemble(mixed, simpleBody()), expect: "PASS-NOTE",
+    buffer: assemble(mixed, simpleBody()), expect: "NEUTRALIZED",
     meta: "decoys at entries[6..9] followed by NameAndType (tag12) -> every(tag===1) fails -> nothing cut, decoys retained",
   };
 }
@@ -289,7 +289,7 @@ const simpleBody = (thisIdx = 2, superIdx = 4, attrs = []) => body({ thisIdx, su
     E.utf8("realTailName"), E.utf8("Code"), E.utf8("App.java"), // originals after decoys
   ]);
   F["c2b-decoys-then-utf8.class"] = {
-    buffer: assemble(mixed, simpleBody()), expect: "FALSE-POSITIVE-CUT",
+    buffer: assemble(mixed, simpleBody()), expect: "NEUTRALIZED",
     meta: "decoys at entries[4..7] followed by 3 legit Utf8s -> cut removes them too (indistinguishable)",
   };
 }
@@ -306,7 +306,7 @@ const simpleBody = (thisIdx = 2, superIdx = 4, attrs = []) => body({ thisIdx, su
   ]);
   const { original, hardened } = blaHarden(entries, simpleBody());
   F["c3a-long-mid-cp-hardened.class"] = {
-    buffer: hardened, expect: "PARSE-FAIL", original,
+    buffer: hardened, expect: "PASS", original,
     meta: "Long at CP #7-8; JVM_CP_SIZES has no tag 5 -> walker breaks -> 'unparseable constant pool', decoys retained",
   };
 }
@@ -319,7 +319,7 @@ const simpleBody = (thisIdx = 2, superIdx = 4, attrs = []) => body({ thisIdx, su
   ]);
   const { original, hardened, firstDecoyCpIndex } = blaHarden(entries, simpleBody());
   F["c3b-double-before-decoys.class"] = {
-    buffer: hardened, expect: "PARSE-FAIL", original,
+    buffer: hardened, expect: "PASS", original,
     meta: `Double at CP #7-8 adjacent to decoy region (#${firstDecoyCpIndex}+); walker never reaches decoys -> PARSE-FAIL`,
   };
 }
@@ -332,7 +332,7 @@ const simpleBody = (thisIdx = 2, superIdx = 4, attrs = []) => body({ thisIdx, su
     E.utf8("com/enclave/tarpit/StateNode_00_pc_1"),
   ]);
   F["c3c-long-inside-decoy-region.class"] = {
-    buffer: assemble(entries, simpleBody()), expect: "PARSE-FAIL",
+    buffer: assemble(entries, simpleBody()), expect: "NEUTRALIZED",
     meta: "Long (tag5) inside marker region -> walker breaks at tag5 -> unparseable; even if walked, every(tag===1) guard would block the cut",
   };
 }
@@ -376,7 +376,7 @@ const simpleBody = (thisIdx = 2, superIdx = 4, attrs = []) => body({ thisIdx, su
   ]);
   const b = body({ thisIdx: 2, superIdx: 4, attrs: [{ name: 5, info: cfg }] });
   F["c5a-schema-inside-attribute.class"] = {
-    buffer: assemble(entries, b), expect: "PASS",
+    buffer: assemble(entries, b), expect: "UNCHANGED",
     meta: "attribute 'AppConfig' payload contains bla-jvm-enclave-v1 INSIDE class body; jvmClassEnd must not cut it",
   };
 }
@@ -389,7 +389,7 @@ const simpleBody = (thisIdx = 2, superIdx = 4, attrs = []) => body({ thisIdx, su
   const clean = assemble(entries, simpleBody());
   const withJson = Buffer.concat([clean, ATTR_JSON]);  // JSON appended, no CP decoys
   F["c5b-json-tail-no-decoys.class"] = {
-    buffer: withJson, expect: "FALSE-POSITIVE-CUT", original: clean,
+    buffer: withJson, expect: "PASS", original: clean,
     meta: "extraCut>0 & decoyEntries=0 -> entries.slice(0,-1) drops last entry from slot sum -> cp_count written one short (desync)",
   };
 }
@@ -414,20 +414,24 @@ const simpleBody = (thisIdx = 2, superIdx = 4, attrs = []) => body({ thisIdx, su
   // arch 1: arm64 cputype=0x0100000C
   fat.writeUInt32BE(0x0100000c, 28); fat.writeUInt32BE(0, 32);
   fat.writeUInt32BE(80, 36); fat.writeUInt32BE(16, 40); fat.writeUInt32BE(2, 44);
-  F["c6-fat-macho.class"] = { buffer: fat, expect: "WRONG-ROUTE", meta: "fat Mach-O named .class -> detect() routes jvm; scrubJvm should bail unparseable" };
-  F["c6-fat-macho.bin"] = { buffer: fat, expect: "PASS", meta: "fat Mach-O non-.class -> detect() routes native (0xcafebabe in macho list)" };
+  F["c6-fat-macho.class"] = { buffer: fat, expect: "UNCHANGED-NOTE", meta: "fat Mach-O named .class -> detect() routes jvm; scrubJvm bails unparseable (fail-safe keep)" };
+  F["c6-fat-macho.bin"] = { buffer: fat, expect: "UNCHANGED-NOTE", meta: "fat Mach-O non-.class -> detect() routes native (0xcafebabe in macho list)" };
   // real hardened class with non-.class extension -> routes native, decoys retained
   const entries = index([E.utf8("App"), E.cls(1), E.utf8("java/lang/Object"), E.cls(3), E.utf8("App.java")]);
-  const { hardened } = blaHarden(entries, simpleBody());
-  F["c6-hardened-class.bin"] = { buffer: hardened, expect: "PASS", meta: "BLA-hardened .class renamed .bin -> new detect() routes jvm by major-version heuristic -> scrubbed" };
+  const { hardened, original } = blaHarden(entries, simpleBody());
+  F["c6-hardened-class.bin"] = { buffer: hardened, expect: "PASS", original, meta: "BLA-hardened .class renamed .bin -> new detect() routes jvm by major-version heuristic -> scrubbed" };
 }
 {
-  // evasion: hardened class with major version patched outside 45-90 -> routes native, decoys retained
+  // evasion attempt: major version patched outside 45-90 — detect() still
+  // follows the embedded bla-jvm-enclave-v1 marker -> jvm -> decoys cut.
+  // Restoration target is the same file with the adversarial major byte.
   const entries = index([E.utf8("App"), E.cls(1), E.utf8("java/lang/Object"), E.cls(3), E.utf8("App.java")]);
   const { hardened, original } = blaHarden(entries, simpleBody());
   const ev = Buffer.from(hardened);
-  ev.writeUInt16BE(91, 6); // major 91 > 90 -> detect() -> "native"
-  F["c6-hardened-major91.bin"] = { buffer: ev, expect: "WRONG-ROUTE", original, meta: "1-byte patch (major 52->91) reroutes hardened class to native -> all decoys retained" };
+  ev.writeUInt16BE(91, 6);
+  const orig91 = Buffer.from(original);
+  orig91.writeUInt16BE(91, 6);
+  F["c6-hardened-major91.bin"] = { buffer: ev, expect: "PASS", original: orig91, meta: "1-byte patch (major 52->91) does NOT evade: bla-jvm-enclave-v1 marker still routes jvm -> exact restore of the major=91 file" };
 }
 {
   // crafted fat Mach-O with nfat_arch=52 (bytes6-7) -> falls in jvm version range -> misroutes to jvm (fail-safe unparseable)
@@ -436,7 +440,7 @@ const simpleBody = (thisIdx = 2, superIdx = 4, attrs = []) => body({ thisIdx, su
   fat.writeUInt32BE(52, 4);                          // nfat_arch = 52 (crafted; real fat bins have ~2-6)
   fat.writeUInt32BE(0x0100000c, 8);                  // arm64 cputype -> cpCount=256, tag@10=0 -> unparseable
   fat.writeUInt32BE(0, 12); fat.writeUInt32BE(48, 16); fat.writeUInt32BE(32, 20); fat.writeUInt32BE(2, 24);
-  F["c6-fat-macho-nfat52.bin"] = { buffer: fat, expect: "WRONG-ROUTE", meta: "nfat_arch=52 collides with JVM major-version range -> routes jvm -> unparseable (fail-safe, unchanged)" };
+  F["c6-fat-macho-nfat52.bin"] = { buffer: fat, expect: "UNCHANGED-NOTE", meta: "nfat_arch=52 collides with JVM major-version range -> routes jvm -> unparseable (fail-safe, unchanged)" };
 }
 
 // ---------- run ----------
@@ -455,8 +459,13 @@ for (const [name, fx] of Object.entries(F)) {
   if (err) verdict = "CRASH: " + err.message;
   else if (r.report.hardened === false && changed === false) {
     verdict = inCp.ok ? "UNCHANGED" : `UNCHANGED (${r.report.note ?? "?"})`;
+    if (r.report.suspiciousCpEntries) verdict += ` flagged=${r.report.suspiciousCpEntries.join(",")}`;
   } else if (exactRestore === true) verdict = "PASS (exact restore)";
   else if (exactRestore === false) verdict = "FALSE-POSITIVE-CUT (output != original)";
+  else if (r.report.mode === "neutralize") {
+    verdict = `NEUTRALIZED x${r.report.decoyCpEntriesNeutralized}` +
+      (r.report.suspiciousCpEntries ? ` flagged=${r.report.suspiciousCpEntries.join(",")}` : "");
+  }
   else if (r.report.hardened) {
     // cut happened on a file that was NOT BLA-hardened -> false positive
     verdict = "FALSE-POSITIVE-CUT";
