@@ -282,7 +282,7 @@ export function scrubWasm(buf) {
   }
   const hardened = WASM_HARD_MARK.test(buf.toString("latin1"));
   const droppedCustom = [];
-  let droppedExports = 0, keptExports = 0;
+  let droppedExports = 0, keptExports = 0, droppedDuplicateExports = 0;
   const out = [buf.subarray(0, 8)];
   for (const s of sections) {
     if (s.id === 0) { // custom
@@ -311,6 +311,7 @@ export function scrubWasm(buf) {
         if (!WASM_DECOY_EXPORT.test(nm)) realFuncIdx.add(idx);
         q = pe;
       }
+      const seenExport = new Set();
       for (let i = 0; i < count && p < s.payload.length; i++) {
         const [nl, ns] = readU32Leb(s.payload, p);
         if (ns + nl + 1 > s.payload.length) break;
@@ -321,6 +322,12 @@ export function scrubWasm(buf) {
         // decoy iff name matches AND (module hardened OR funcIndex aliases an
         // already-real-named export — BLA decoys always alias real funcs)
         if (WASM_DECOY_EXPORT.test(nm) && (hardened || (kind === 0 && realFuncIdx.has(idx)))) { droppedExports++; continue; }
+        // double-harden: decoys wearing real `ops_*` names can't be matched —
+        // they always alias an already-exported (kind,idx). Dedup keeps the
+        // first; aliasing is legit in plain modules so it's hardened-gated.
+        const ek = kind + ":" + idx;
+        if (hardened && seenExport.has(ek)) { droppedDuplicateExports++; continue; }
+        seenExport.add(ek);
         keptExports++;
         const nb = Buffer.from(nm, "utf8");
         entries.push(Buffer.concat([writeU32Leb(nb.length), nb, Buffer.from([kind]), writeU32Leb(idx)]));
@@ -353,6 +360,7 @@ export function scrubWasm(buf) {
       hardened,
       customSectionsDropped: droppedCustom,
       exportDecoysDropped: droppedExports,
+      duplicateExportsDropped: droppedDuplicateExports,
       exportsKept: keptExports,
       ...(exportNameRecovery?.length ? { exportNamesRecovered: exportNameRecovery } : {}),
     },

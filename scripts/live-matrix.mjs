@@ -255,6 +255,35 @@ for (const level of levels) {
         check(tag, "2x-exec", false, String(err).split("\n")[0].slice(0, 100));
       }
     }
+    if (e === ".wasm") {
+      // 2x-wasm: layer 2 renames layer-1 ops_* names AND floods ops_*-shaped
+      // decoys that name-filters can't match — (kind,idx) dedup must collapse
+      // them to the real export surface.
+      const hardened2 = join(hardDir, "2x-" + f);
+      const cleaned2 = join(cleanDir, "2x-" + f);
+      try {
+        execFileSync(process.execPath,
+          [BLA, "protect", hardened, "-o", hardened2, "--intensity", blaLevel, "--seed", SEED + "-2", ...flags],
+          { stdio: "pipe", timeout: 180000 });
+        if (!existsSync(hardened2)) throw new Error("no output");
+        check(tag, "bla-2x", true);
+      } catch (err) {
+        skip++; rows.push(`SKIP  ${tag}  bla-2x: ${String(err).split("\n")[0].slice(0, 80)}`);
+        continue;
+      }
+      try {
+        execFileSync(process.execPath,
+          [BLADE, hardened2, "-o", cleaned2, "--quiet"],
+          { stdio: "pipe", timeout: 120000 });
+        const out2 = readFileSync(cleaned2);
+        const mod2 = new WebAssembly.Module(out2);
+        check(tag, "2x-compiles", true);
+        const exportCount = WebAssembly.Module.exports(mod2).length;
+        check(tag, "2x-exports", exportCount === 3, `expected 3 real exports, got ${exportCount}`);
+      } catch (err) {
+        check(tag, "2x-compiles", false, String(err).split("\n")[0].slice(0, 80));
+      }
+    }
     if (f === "electron-bridge.js") {
       // same double-harden pass, content assertions only (no electron runtime)
       const hardened2 = join(hardDir, "2x-" + f);

@@ -446,8 +446,10 @@ export function scrubDex(buf) {
       // place — it can't be cut without destroying real content.
       if (m !== marker || !cut || at !== cut.markerAt) {
         if (!out) out = Buffer.from(buf);
-        out.fill(0x2a, at, at + m.length); // '*' — MUTF-8 safe
-        inPlace.push(at);
+        // marker hits can sit in the cut-off tail (double-harden stacks a
+        // second SHIELD trailer past the first) — clamp to the kept region.
+        const end = Math.min(at + m.length, out.length);
+        if (end > at) { out.fill(0x2a, at, end); inPlace.push(at); }
       }
       at = buf.indexOf(m, at + 1);
     }
