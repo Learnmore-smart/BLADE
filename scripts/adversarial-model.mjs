@@ -962,3 +962,8 @@ for (const r of results) {
 const tally = {};
 for (const r of results) tally[r.verdict] = (tally[r.verdict] ?? 0) + 1;
 console.log("\ntally:", JSON.stringify(tally));
+const bad = results.filter((r) => !r.verdict.startsWith("PASS"));
+if (bad.length) {
+  console.error(`\n${bad.length} non-PASS verdicts: ${bad.map((r) => r.id).join(", ")}`);
+  process.exit(1);
+}

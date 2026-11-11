@@ -25,6 +25,7 @@ const SUITES = [
   ["evm", "test-fixtures/adversarial/evm/run.mjs", false],
   ["html", "test-fixtures/adversarial/html/run-all.mjs", false],
   ["jvm", "test-fixtures/adversarial/jvm/adversarial-jvm.mjs", false],
+  ["model", "scripts/adversarial-model.mjs", false],
   ["native", "test-fixtures/adversarial/native/check.mjs", false],
   ["native-fuses", "test-fixtures/adversarial/native/check-fuses.mjs", false],
   ["native-enclave", "test-fixtures/adversarial/native/check-enclave.mjs", false],
