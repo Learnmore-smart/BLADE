@@ -71,6 +71,31 @@ function exerciseAll(label, buf, ext = "") {
 
 for (const [label, buf] of degenerates) exerciseAll(`degenerate:${label}`, buf);
 
+// ---- format-specific malformed variants: headers that route to a scrubber
+// but whose record structure is degenerate — the owning scrubber must not
+// crash (pcapng block walk and BE pcap records especially).
+{
+  const pcapHdr = (be, nsec) => {
+    const h = Buffer.alloc(24);
+    if (be) h.writeUInt32BE(nsec ? 0xa1b23c4d : 0xa1b2c3d4, 0);
+    else h.writeUInt32LE(nsec ? 0xa1b23c4d : 0xa1b2c3d4, 0);
+    return h;
+  };
+  const variants = [
+    ["pcap-be-nsec-truncated-rec", Buffer.concat([pcapHdr(true, true), Buffer.from([0, 0, 0, 1, 0, 0])])],
+    ["pcap-be-huge-incl", Buffer.concat([pcapHdr(true, false), Buffer.alloc(16, 0xff)])],
+    ["pcapng-len-overflow", buf2(0x0a0d0d0a, 0xfffffff8)],
+    ["pcapng-len-odd", buf2(0x0a0d0d0a, 13)],
+    ["pcapng-truncated-block", Buffer.concat([buf2(0x0a0d0d0a, 0x40), Buffer.alloc(8)])],
+    ["pcapng-shb-only", buf2(0x0a0d0d0a, 0x1c)],
+  ];
+  function buf2(magic, len) { const b = Buffer.alloc(12); b.writeUInt32LE(magic, 0); b.writeUInt32LE(len, 4); b.writeUInt32LE(len, 8); return b; }
+  for (const [label, b] of variants) {
+    check(`malformed:${label}: detect`, () => detect(b, ""));
+    check(`malformed:${label}: scrubPcap`, () => scrubPcap(b));
+  }
+}
+
 // ---- truncated real fixtures: every prefix length step of each hardened
 // fixture routed to its own kind must not crash the owning scrubber.
 const SCRUBBERS = {
