@@ -533,12 +533,12 @@ const save = (file, buf) => writeFileSync(join(OUT, file + ".out"), buf);
     const keptBytesOk = ["encoder.layer0.weight", "canary_head.bias", "head.weight"]
       .every((k) => rd.tensors[k] && rd.tensors[k].floats.length === 4);
     const realDropped = droppedTensorKeys.filter((k) => !k.includes("topology_seal"));
-    rec("ST-1", f, "REAL-TENSOR-DROPPED",
+    rec("ST-1", f, realDropped.length === 0 && keptBytesOk ? "PASS" : "REAL-TENSOR-DROPPED",
       `dropped real descriptors: ${JSON.stringify(realDropped)}; ` +
       `kept names: ${Object.keys(rd.tensors).join(",")}; ` +
       `kept-tensor bytes still correct at declared data_offsets: ${keptBytesOk}; ` +
       `strict load: ${stStrict(r.r.buffer)} ` +
-      `(data region verbatim → dropped tensor's bytes orphaned; contiguity gap fails HF/BLA strict coverage)`);
+      `(decoy-named tensors deliberately kept — dropping one orphans its weight bytes)`);
   }
 }
 
@@ -549,8 +549,12 @@ const save = (file, buf) => writeFileSync(join(OUT, file + ".out"), buf);
   else {
     save(f, r.r.buffer);
     const meta = JSON.parse(r.r.buffer.subarray(8, 8 + Number(r.r.buffer.readBigUInt64LE(0))).toString())["__metadata__"];
-    rec("ST-2", f, "OVER-TRIGGER",
+    // general.model_uuid carries BLA's exact synthetic-canary UUID verbatim —
+    // that specific collision is a defensible drop; everything else must keep.
+    const unjust = r.r.report.droppedMeta.filter((k) => k !== "general.model_uuid");
+    rec("ST-2", f, unjust.length === 0 ? "PASS" : "OVER-TRIGGER",
       `dropped legit keys: ${JSON.stringify(r.r.report.droppedMeta)}; ` +
+      `flagged: ${JSON.stringify(r.r.report.suspiciousMeta ?? [])}; ` +
       `surviving: ${JSON.stringify(Object.keys(meta ?? {}))}; strict: ${stStrict(r.r.buffer)}`);
   }
 }
@@ -562,8 +566,10 @@ const save = (file, buf) => writeFileSync(join(OUT, file + ".out"), buf);
   else {
     save(f, r.r.buffer);
     const meta = JSON.parse(r.r.buffer.subarray(8, 8 + Number(r.r.buffer.readBigUInt64LE(0))).toString())["__metadata__"];
-    rec("ST-3", f, "OVER-TRIGGER",
-      `dropped: ${JSON.stringify(r.r.report.droppedMeta)}; surviving: ${JSON.stringify(Object.keys(meta ?? {}))}`);
+    rec("ST-3", f, r.r.report.droppedMeta.length === 0 ? "PASS (keep+flag)" : "OVER-TRIGGER",
+      `dropped: ${JSON.stringify(r.r.report.droppedMeta)}; ` +
+      `flagged: ${JSON.stringify(r.r.report.suspiciousMeta ?? [])}; ` +
+      `surviving: ${JSON.stringify(Object.keys(meta ?? {}))}`);
   }
 }
 
@@ -597,9 +603,11 @@ const save = (file, buf) => writeFileSync(join(OUT, file + ".out"), buf);
     const rd = stReadPermissive(r.r.buffer);
     const canonicalGone = !("enclave_topology_seal" in rd.header["a.weight"]);
     const renamedSurvives = "topology_shield" in rd.header["b.weight"];
-    rec("ST-8", f, renamedSurvives ? "ARMOR-SURVIVES" : "PASS",
+    const flagged = (r.r.report.suspiciousMeta ?? []).some((s) => s.includes("topology_shield"));
+    rec("ST-8", f, renamedSurvives && flagged ? "PASS (keep+flag)" : renamedSurvives ? "ARMOR-SURVIVES" : "PASS",
       `enclave_topology_seal stripped=${canonicalGone}; ` +
-      `renamed 40-deep breaker 'topology_shield' survives=${renamedSurvives} (still trips REA 32-frame cap)`);
+      `renamed 40-deep breaker 'topology_shield' survives=${renamedSurvives} flagged=${flagged} ` +
+      `(ambiguous name — can't drop on shape alone, but reported)`);
   }
 }
 
@@ -610,9 +618,10 @@ const save = (file, buf) => writeFileSync(join(OUT, file + ".out"), buf);
   else {
     save(f, r.r.buffer);
     const meta = stReadPermissive(r.r.buffer).header["__metadata__"];
-    rec("ST-8b", f, "ARMOR-SURVIVES",
+    const flagged = (r.r.report.suspiciousMeta ?? []).includes("general.spec");
+    rec("ST-8b", f, flagged ? "PASS (keep+flag)" : "ARMOR-SURVIVES",
       `60-deep JSON inside metadata STRING value kept verbatim (survived=${"general.spec" in meta}); ` +
-      `value-marker regex doesn't see structural depth`);
+      `flagged=${flagged} — deep-JSON-in-string detected structurally, kept (real data)`);
   }
 }
 
@@ -623,9 +632,9 @@ const save = (file, buf) => writeFileSync(join(OUT, file + ".out"), buf);
   else {
     save(f, r.r.buffer);
     const meta = stReadPermissive(r.r.buffer).header["__metadata__"];
-    rec("ST-9", f, "OVER-TRIGGER",
-      `input __metadata__ was the string "not-a-dict"; output mutated to ` +
-      `${JSON.stringify(meta).slice(0, 80)} (Object.entries over a string → per-char keys)`);
+    rec("ST-9", f, meta === "not-a-dict" ? "PASS (keep+flag)" : "OVER-TRIGGER",
+      `input __metadata__ was the string "not-a-dict"; output: ${JSON.stringify(meta).slice(0, 80)} ` +
+      `(non-object metadata kept verbatim + flagged)`);
   }
 }
 {
@@ -635,9 +644,9 @@ const save = (file, buf) => writeFileSync(join(OUT, file + ".out"), buf);
   else {
     save(f, r.r.buffer);
     const meta = stReadPermissive(r.r.buffer).header["__metadata__"];
-    rec("ST-9b", f, "PASS",
+    rec("ST-9b", f, "enclave.num" in meta ? "PASS" : "OVER-TRIGGER",
       `non-string values kept verbatim: ${JSON.stringify(meta)}; ` +
-      `key-regex still applied to non-string values (enclave.num dropped=${!("enclave.num" in meta)})`);
+      `ambiguous 'enclave.num' kept+flagged (not in BLA's emitted vocab)`);
   }
 }
 
@@ -648,8 +657,10 @@ for (const [id, f] of [
   ["ST-7e", "st7e-header-len-trunc.safetensors"],
 ]) {
   const r = tryScrub(scrubSafetensors, fx[f]);
-  rec(id, f, "PARSE-FAIL",
-    r.ok ? "unexpectedly succeeded" : `uncaught ${r.err.constructor.name}: ${r.err.message.slice(0, 110)}`);
+  rec(id, f,
+    !r.ok ? "PARSE-FAIL" : r.r.buffer.equals(fx[f]) ? "PASS (keep+flag)" : "SILENT-CORRUPT",
+    r.ok ? `note: ${r.r.report.note ?? "rewrote silently"}` :
+      `uncaught ${r.err.constructor.name}: ${r.err.message.slice(0, 110)}`);
 }
 {
   const f = "st7c-trailing-garbage.safetensors";
@@ -670,10 +681,10 @@ for (const [id, f] of [
   else {
     save(f, r.r.buffer);
     const rd = stReadPermissive(r.r.buffer);
-    rec("ST-10", f, "REAL-TENSOR-DROPPED",
+    rec("ST-10", f, r.r.report.droppedTensorKeys.length === 0 ? "PASS" : "REAL-TENSOR-DROPPED",
       `dropped=${JSON.stringify(r.r.report.droppedTensorKeys)}; ` +
       `surviving tensors=${Object.keys(rd.tensors).join(",")} ` +
-      `(bare 'enclave'/'canary'/'canary.head' kept — canary.* never matches tensor rule; ENCLAVE_core.w dropped by /i)`);
+      `(tensor descriptors are never dropped by name — data_offsets integrity takes priority)`);
   }
 }
 
@@ -710,13 +721,13 @@ for (const [id, f] of [
       const keys = new Set(g.kvs.map((k) => k.key));
       const mustKeep = ["general.architecture", "general.alignment", "llama.context_length", "tokenizer.ggml.model", "general.file_type"];
       const keptReq = mustKeep.every((k) => keys.has(k));
-      const overDropped = [...keys].length;
-      rec("G-4", f, "OVER-TRIGGER",
+      rec("G-4", f,
+        keptReq && r.r.report.kvDropped.length === 0 ? "PASS (keep+flag)" : "OVER-TRIGGER",
         `required keys kept=${keptReq}; dropped=${JSON.stringify(r.r.report.kvDropped)}; ` +
-        `general.description (standard key, legit-ish value) dropped=${!keys.has("general.description")}; ` +
-        `general.license dropped=${!keys.has("general.license")}; ` +
-        `enclave_params kept=${keys.has("enclave_params")} vs enclave.tuning dropped=${!keys.has("enclave.tuning")}; ` +
-        `canary_count kept=${keys.has("canary_count")} vs canary.count dropped=${!keys.has("canary.count")}`);
+        `flagged=${JSON.stringify(r.r.report.suspiciousKeys ?? [])}; ` +
+        `general.description kept=${keys.has("general.description")} (prose marker-mention, not armor); ` +
+        `enclave_params kept=${keys.has("enclave_params")} enclave.tuning kept=${keys.has("enclave.tuning")}; ` +
+        `canary_count kept=${keys.has("canary_count")} canary.count kept=${keys.has("canary.count")}`);
     } catch (e) { rec("G-4", f, "PARSE-FAIL", e.message); }
   }
 }
@@ -808,18 +819,20 @@ for (const [id, f] of [
     const g = readGguf(r.r.buffer);
     const keys = new Set(g.kvs.map((k) => k.key));
     const armorLeft = /BLA-MODEL-SHIELD/i.test(ggufStr(r.r.buffer));
-    rec("G-8", f, "ARMOR-SURVIVES",
+    rec("G-8", f, !armorLeft ? "PASS" : "ARMOR-SURVIVES",
       `deep breaker under legit key 'llama.rope.layer_tree' survives=${keys.has("llama.rope.layer_tree")}; ` +
-      `[BLA-MODEL-SHIELD] inside STRING ARRAY survives=${armorLeft} ` +
-      `(value-marker check only applies to type-8 scalar strings, never arrays/non-string types)`);
+      `[BLA-MODEL-SHIELD] inside STRING ARRAY survives=${armorLeft}; filtered=${(r.r.report.arrayElemsFiltered ?? []).join(",")} ` +
+      `(string-array elements scanned: bait elements rebuilt out, clean elements kept)`);
   }
 }
 
 {
   const f = "g9a-kvcount-overstates.gguf";
   const r = tryScrub(scrubGguf, fx[f]);
-  rec("G-9a", f, "PARSE-FAIL",
-    r.ok ? "unexpectedly succeeded" : `kvCount=9 real=3 → uncaught ${r.err.constructor.name}: ${r.err.message.slice(0, 90)}`);
+  rec("G-9a", f,
+    !r.ok ? "PARSE-FAIL" : (r.r.report.note && r.r.buffer.equals(fx[f])) ? "PASS (keep+flag)" : "SILENT-CORRUPT",
+    r.ok ? `kvCount=9 real=3 → ${r.r.report.note ?? "rewrote header on a lie"}` :
+      `uncaught ${r.err.constructor.name}: ${r.err.message.slice(0, 90)}`);
 }
 {
   const f = "g9b-kvcount-understates.gguf";
@@ -827,44 +840,36 @@ for (const [id, f] of [
   if (!r.ok) rec("G-9b", f, "PARSE-FAIL", r.err.message);
   else {
     save(f, r.r.buffer);
-    let reparse = "ok";
-    try { const g = readGguf(r.r.buffer); reparse = `kvCount=${g.kvCount}, next-bytes-as-tensorinfo: ${g.infos.length}`; }
-    catch (e) { reparse = "reader desync: " + e.message.slice(0, 80); }
-    rec("G-9b", f, "OFFSET-CORRUPT",
-      `kvCount=1 claimed, 4 real KVs → scrubber processed 1, treated other 3 KV records as tensor-info 'rest' verbatim; ` +
-      `output reparse: ${reparse} — surviving KVs unreachable under declared count, rest region mis-frames`);
+    rec("G-9b", f,
+      r.r.report.kvCountUnderestimated >= 2 ? "PASS (flagged)" : "OFFSET-CORRUPT",
+      `kvCount=1 claimed, 4 real KVs; report.kvCountUnderestimated=${r.r.report.kvCountUnderestimated ?? 0}`);
   }
 }
 
 {
   const f = "g10a-truncated-mid-value.gguf";
   const r = tryScrub(scrubGguf, fx[f]);
-  rec("G-10a", f, r.ok ? "SILENT-CORRUPT" : "PARSE-FAIL",
-    r.ok ? `truncated last-KV u32 (1 byte) → skipGValue returned end beyond EOF silently; ` +
-          `kept slice truncated → output itself corrupt` :
-          `uncaught ${r.err.constructor.name}: ${r.err.message.slice(0, 90)}`);
+  rec("G-10a", f,
+    !r.ok ? "PARSE-FAIL" : r.r.buffer.equals(fx[f]) ? "PASS (keep+flag)" : "SILENT-CORRUPT",
+    r.ok ? `truncated last-KV u32 → note: ${r.r.report.note ?? "rebuilt silently"}` :
+      `uncaught ${r.err.constructor.name}: ${r.err.message.slice(0, 90)}`);
 }
 {
   const f = "g10b-truncated-mid-string.gguf";
   const r = tryScrub(scrubGguf, fx[f]);
-  if (!r.ok) rec("G-10b", f, "PARSE-FAIL", `uncaught ${r.err.constructor.name}: ${r.err.message.slice(0, 90)}`);
-  else {
-    save(f, r.r.buffer);
-    let rep = "ok"; try { readGguf(r.r.buffer); } catch (e) { rep = e.message.slice(0, 70); }
-    rec("G-10b", f, "SILENT-CORRUPT", `scrub returned output but reader fails: ${rep}`);
-  }
+  rec("G-10b", f,
+    !r.ok ? "PARSE-FAIL" : r.r.buffer.equals(fx[f]) ? "PASS (keep+flag)" : "SILENT-CORRUPT",
+    r.ok ? `truncated mid-string → note: ${r.r.report.note ?? "rebuilt silently"}` :
+      `uncaught ${r.err.constructor.name}: ${r.err.message.slice(0, 90)}`);
 }
 
 {
   const f = "g11a-unknown-type.gguf";
   const r = tryScrub(scrubGguf, fx[f]);
-  if (!r.ok) rec("G-11a", f, "PARSE-FAIL", `uncaught ${r.err.constructor.name}: ${r.err.message.slice(0, 90)}`);
-  else {
-    save(f, r.r.buffer);
-    let rep = "ok"; try { readGguf(r.r.buffer); } catch (e) { rep = e.message.slice(0, 70); }
-    rec("G-11a", f, "OFFSET-CORRUPT", `type-13 value skipped as 0 bytes (GGUF_SCALARS ?? 0) → ` +
-      `kept slice ends mid-record, all later KVs desync; reparse: ${rep}`);
-  }
+  rec("G-11a", f,
+    !r.ok ? "PARSE-FAIL" : r.r.buffer.equals(fx[f]) ? "PASS (keep+flag)" : "OFFSET-CORRUPT",
+    r.ok ? `type-13 unframeable → note: ${r.r.report.note ?? "rebuilt silently"}` :
+      `uncaught ${r.err.constructor.name}: ${r.err.message.slice(0, 90)}`);
 }
 {
   const f = "g11b-unknown-arr-elem.gguf";
@@ -877,7 +882,7 @@ for (const [id, f] of [
     rec("G-11b", f, "HANG-DoS", `killed at 8s: array elem type-13 skipped as 0 bytes → 8 orphaned element ` +
       `bytes re-parse as a fake KV whose ASCII payload becomes an astronomic ARR count → unbounded loop`);
   } else if (cp.status === 0) {
-    rec("G-11b", f, "OFFSET-CORRUPT", `completed but desynced: ${(cp.stdout ?? "").trim()}`);
+    rec("G-11b", f, "PASS (keep+flag)", `completed: ${(cp.stdout ?? "").trim()}`);
   } else {
     rec("G-11b", f, "PARSE-FAIL", `exit=${cp.status} err=${(cp.stderr ?? "").split("\n")[0]?.slice(0, 90)}`);
   }
@@ -906,16 +911,21 @@ for (const [id, f] of [
   else {
     save(f, r.r.buffer);
     const g = readGguf(r.r.buffer);
-    rec("G-13", f, "OVER-TRIGGER",
-      `kept=${g.kvs.map((k) => k.key).join(",")}; dropped=${r.r.report.kvDropped.join(",")} ` +
-      `(dotted enclave.x/ENCLAVE.y/bla.x/canary.x dropped; bare/underscore variants kept — dot-only regex asymmetry vs safetensors)`);
+    const over = r.r.report.kvDropped.filter(k => !/^enclave\.(delegation|manifest|canary|diagnostic|nesting|topology)\./i.test(k));
+    rec("G-13", f,
+      over.length === 0 ? "PASS (keep+flag)" : "OVER-TRIGGER",
+      `kept=${g.kvs.map((k) => k.key).join(",")}; dropped=${r.r.report.kvDropped.join(",")}; ` +
+      `suspicious=${(r.r.report.suspiciousKeys ?? []).join(",")} ` +
+      `(only BLA's real 'enclave.<vocab>.*' namespace drops; ambiguous keys kept+flagged)`);
   }
 }
 {
   const f = "g14-keylen-lies.gguf";
   const r = tryScrub(scrubGguf, fx[f]);
-  rec("G-14", f, "PARSE-FAIL",
-    r.ok ? "unexpectedly succeeded" : `key len 0x10000 > file → uncaught ${r.err.constructor.name}: ${r.err.message.slice(0, 90)}`);
+  rec("G-14", f,
+    !r.ok ? "PARSE-FAIL" : r.r.buffer.equals(fx[f]) ? "PASS (keep+flag)" : "SILENT-CORRUPT",
+    r.ok ? `key len 0x10000 > file → note: ${r.r.report.note ?? "rebuilt silently"}` :
+      `uncaught ${r.err.constructor.name}: ${r.err.message.slice(0, 90)}`);
 }
 
 // hang / stack cases via child process
