@@ -766,6 +766,10 @@ export function scrubGguf(buf) {
       } catch { break; }
     }
   }
+  // A tensor_info record is at minimum 24 bytes (empty name + n_dims +
+  // 0 dims + dtype + offset). Fewer rest-bytes than tensorCount×24 means
+  // the file is truncated or the count lies — flag it, never drop.
+  const tensorRegionShort = Number(tensorCount) > 0 && rest.length < Number(tensorCount) * 24;
   // GGUF tensor offsets are RELATIVE to the tensor-data region start, and
   // the spec's alignment padding lives after tensor_infos — dropping KVs only
   // moves data_start earlier, offsets stay self-consistent. Do NOT insert
@@ -778,6 +782,6 @@ export function scrubGguf(buf) {
   hdr.writeBigUInt64LE(BigInt(kept.length), 16);
   return {
     buffer: Buffer.concat([hdr, ...kept, rest]),
-    report: { format: "gguf", kvIn: kvCount, kvKept: kept.length, kvDropped: dropped, ...(suspicious.length ? { suspiciousKeys: suspicious } : {}), ...(kvCountSuspicious >= 2 ? { kvCountUnderestimated: kvCountSuspicious } : {}), ...(arrayElemsFiltered.length ? { arrayElemsFiltered } : {}) },
+    report: { format: "gguf", kvIn: kvCount, kvKept: kept.length, kvDropped: dropped, ...(suspicious.length ? { suspiciousKeys: suspicious } : {}), ...(kvCountSuspicious >= 2 ? { kvCountUnderestimated: kvCountSuspicious } : {}), ...(arrayElemsFiltered.length ? { arrayElemsFiltered } : {}), ...(tensorRegionShort ? { tensorRegionShort: `rest=${rest.length}B < tensorCount=${tensorCount}×24` } : {}) },
   };
 }
