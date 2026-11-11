@@ -161,6 +161,43 @@ const fixtures = {};
   ]);
 }
 
+// CASE 1b: pcapng where the marker lives inside a STRUCTURAL block (an SHB
+// option/comment) — the block cannot be dropped without breaking the file,
+// so the correct outcome is keep + suspiciousBlocks flag.
+{
+  const pad4 = (n) => (4 - (n % 4)) % 4;
+  const block = (type, body) => {
+    const total = 12 + body.length;
+    const b = Buffer.alloc(total);
+    b.writeUInt32LE(type, 0);
+    b.writeUInt32LE(total, 4);
+    body.copy(b, 8);
+    b.writeUInt32LE(total, total - 4);
+    return b;
+  };
+  const opt = (code, text) => {
+    const t = Buffer.from(text, "utf8");
+    const o = Buffer.alloc(4 + t.length + pad4(t.length));
+    o.writeUInt16LE(code, 0); o.writeUInt16LE(t.length, 2);
+    t.copy(o, 4);
+    return o;
+  };
+  const shbBody = Buffer.concat([
+    (() => { const b = Buffer.alloc(16); b.writeUInt32LE(0x1a2b3c4d, 0); b.writeUInt16LE(1, 4); b.writeUInt16LE(0, 6); b.writeBigInt64LE(-1n, 8); return b; })(),
+    opt(1, "captured inside enclave.internal sandbox /bla/tarpit/"), // opt_comment w/ 2 ambient markers
+    Buffer.alloc(4), // opt_endofopt
+  ]);
+  const idbBody = (() => { const b = Buffer.alloc(8); b.writeUInt16LE(1, 0); b.writeUInt16LE(0, 2); b.writeUInt32LE(65535, 4); return b; })();
+  const epbBody = (() => {
+    const f = tcpFrame(realHttpPayload); const b = Buffer.alloc(20 + f.length + pad4(f.length));
+    b.writeUInt32LE(f.length, 12); b.writeUInt32LE(f.length, 16); f.copy(b, 20);
+    return b;
+  })();
+  fixtures["case1b-pcapng-structural-marker.pcapng"] = Buffer.concat([
+    block(0x0a0d0d0a, shbBody), block(0x00000001, idbBody), block(0x00000006, epbBody),
+  ]);
+}
+
 // CASE 2: classic LE pcap, REAL packets whose payloads legitimately mention
 // the marker strings (captured traffic discussing the tool / its tarpit URL).
 {
