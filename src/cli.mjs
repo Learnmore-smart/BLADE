@@ -93,7 +93,8 @@ function main() {
     process.exit(2);
   }
   const ext = stdin ? "" : extname(input).toLowerCase();
-  const KNOWN_KINDS = new Set(["js", "asar", "wasm", "sqlite", "safetensors", "gguf", "native", "dex", "il2cpp", "dotnet", "evm", "ptx", "jvm", "plist", "pcap", "uf2", "beam", "pyc", "zip", "py", "html", "sourcemap", "header", "bunfs-snapshot", "sidecar-note"]);
+  const KNOWN_KINDS = new Set(["js", "asar", "wasm", "sqlite", "safetensors", "gguf", "native", "dex", "il2cpp", "dotnet", "evm", "ptx", "jvm", "plist", "pcap", "pcapng", "uf2", "beam", "pyc", "zip", "py", "html", "sourcemap", "header", "bunfs-snapshot", "sidecar-note"]);
+  const KIND_ALIASES = { pcapng: "pcap" }; // same scrubber handles both magics
   let kind;
   if (fIdx !== -1) {
     kind = args[fIdx + 1];
@@ -101,6 +102,7 @@ function main() {
       console.error(`blade: unknown --format '${kind}' (known: ${[...KNOWN_KINDS].join(", ")})`);
       process.exit(2);
     }
+    kind = KIND_ALIASES[kind] ?? kind;
   } else {
     kind = detect(buf, ext);
   }
