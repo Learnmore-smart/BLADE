@@ -126,13 +126,30 @@ function detect(buf, ext) {
   return "unknown";
 }
 
+const USAGE = `blade — de-harden a BLA-protected artifact
+
+usage: node src/cli.mjs <input> [-o output] [--report out.json] [--quiet] [--verbose]
+
+options:
+  -o <path>          output path (default: <input>.cleaned<ext>)
+  --report <path>    write the full JSON report to <path>
+  --quiet            suppress the report dump on stdout
+  --verbose          never truncate the report on stdout
+  --help, -h         show this text
+  --version          print the blade version
+
+exit codes: 0 success · 1 unrecognized format · 2 usage/IO error
+
+All processing is local; nothing is uploaded.`;
+
 function main() {
   const args = process.argv.slice(2);
+  if (args.includes("--help") || args.includes("-h")) { console.log(USAGE); process.exit(0); }
   const input = args.find((a) => !a.startsWith("-"));
   const oIdx = args.indexOf("-o");
   const rIdx = args.indexOf("--report");
   if (!input) {
-    console.error("usage: node src/cli.mjs <input> [-o output] [--report out.json]");
+    console.error(USAGE);
     process.exit(2);
   }
   let buf;
