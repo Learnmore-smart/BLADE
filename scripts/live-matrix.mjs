@@ -213,6 +213,41 @@ for (const level of levels) {
       } catch (err) {
         check(tag, "exec", false, String(err).split("\n")[0].slice(0, 100));
       }
+
+      // ---- double-harden: protect the hardened output AGAIN, then clean ----
+      // Layer 2 wraps layer 1: extra corpus family, second seed-decl whose
+      // expected digest is arithmetic over the first seed, seeds entangled
+      // into real exprs. The regression this guards once shipped silently.
+      const hardened2 = join(hardDir, "2x-" + f);
+      const cleaned2 = join(cleanDir, "2x-" + f);
+      try {
+        execFileSync(process.execPath,
+          [BLA, "protect", hardened, "-o", hardened2, "--intensity", blaLevel, "--seed", SEED + "-2", ...flags],
+          { stdio: "pipe", timeout: 180000 });
+        if (!existsSync(hardened2)) throw new Error("no output");
+        check(tag, "bla-2x", true);
+      } catch (err) {
+        skip++; rows.push(`SKIP  ${tag}  bla-2x: ${String(err).split("\n")[0].slice(0, 80)}`);
+        continue;
+      }
+      try {
+        execFileSync(process.execPath,
+          [BLADE, hardened2, "-o", cleaned2, "--quiet"],
+          { stdio: "pipe", timeout: 120000 });
+        const out2 = readFileSync(cleaned2).toString("utf8");
+        const m = new Module("live2");
+        m._compile(out2, cleaned2);
+        const fns = m.exports;
+        const t = fns.deriveSessionTicket("ENT-001", "prod");
+        const v = fns.validateEnterpriseLicense("ENT-001", "prod", t);
+        const bad = fns.validateEnterpriseLicense("E", "p", 1);
+        const machinery = /_interlockSafetyCorpus_|_deriveContainmentCorpusDigest_|\.every\(_f/.test(out2);
+        check(tag, "2x-exec", v.valid === true && v.tier === "enterprise-unlimited" && bad.valid === false,
+          `valid=${v.valid} tier=${v.tier} badValid=${bad.valid}`);
+        check(tag, "2x-machinery-free", !machinery, "residual corpus/digest refs");
+      } catch (err) {
+        check(tag, "2x-exec", false, String(err).split("\n")[0].slice(0, 100));
+      }
     }
   }
 }

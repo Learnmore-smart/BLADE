@@ -112,6 +112,34 @@ function record(caseId, ok, detail) {
   );
 }
 
+// ---- 6. real double-harden (protect output re-protected) --------------------
+// `bla protect` applied twice: two corpus families, second seed-decl expected
+// digest expressed as arithmetic over the FIRST seed, and both seeds
+// entangled into real expressions. Cleaned code must execute identically.
+{
+  const src = read("double-harden-324.src.js");
+  const r = dehardenJs(src, { filename: "double-harden-324.src.js" });
+  writeFileSync(join(OUT, "double-harden.cleaned.js"), r.code);
+  const noMachinery =
+    !/_interlockSafetyCorpus_|_deriveContainmentCorpusDigest_|\.every\(_f/.test(r.code);
+  const noDangling = r.report.danglingRefs.length === 0;
+  const mod = { exports: {} };
+  let execOk = false, parity = false;
+  try {
+    new Function("module", "exports", "require", r.code)(mod, mod.exports, () => ({}));
+    const t = mod.exports.deriveSessionTicket("ENT-ALPHA-9", "pro");
+    const v = mod.exports.validateEnterpriseLicense("ENT-ALPHA-9", "pro", t);
+    const bad = mod.exports.validateEnterpriseLicense("E", "p", 1);
+    execOk = true;
+    parity = v.valid && v.tier === "enterprise-unlimited" && bad.valid === false;
+  } catch { /* execOk stays false */ }
+  record(
+    "v324 double-harden exec parity",
+    noMachinery && noDangling && execOk && parity,
+    `machinery=${!noMachinery} dangling=${r.report.danglingRefs.length} exec=${execOk} parity=${parity}`,
+  );
+}
+
 // ---- summary ----------------------------------------------------------------
 const fails = results.filter((r) => r.verdict !== "PASS");
 console.log(`\n${results.length - fails.length} passed, ${fails.length} failed`);

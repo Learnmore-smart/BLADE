@@ -443,7 +443,12 @@ export function dehardenJs(source, { filename = "input.js" } = {}) {
     return { code: source, report: { ...report, note: `unparseable — passthrough (${e.message.split("\n")[0]})` } };
   }
   const body = ast.program.body;
-  const eval0 = makeEvaluator(new Map());
+  // consts discovered during pass 1 get bound back into this map — a
+  // double-hardened file's second digest check may express its expected
+  // value as seed-arithmetic over the FIRST family's seed, which only
+  // folds once that earlier seed is bound.
+  const eval0Consts = new Map();
+  const eval0 = makeEvaluator(eval0Consts);
   const ev0 = eval0.ev;
 
   // ---- Pass -1: BLA-emission shape passes (pre-classification, so removed
@@ -755,21 +760,22 @@ export function dehardenJs(source, { filename = "input.js" } = {}) {
   // ---- Pass 1: seed discovery (corpus + digest + seed decl)
   let corpusEntries = null;
   let seedDeclIndex = -1;
-  for (const stmt of body) {
-    if (stmt.type !== "VariableDeclaration") continue;
-    for (const d of stmt.declarations) {
-      if (d.id && d.id.type === "Identifier" && /^_interlockSafetyCorpus_\w+$/.test(d.id.name)) {
-        const r = ev0(d.init);
-        if (r.known && Array.isArray(r.value)) corpusEntries = r.value;
-      }
-    }
-  }
   let seedName = null, seedValue = null, seedExpected = null;
+  const seedBindings = [];   // every resolved seed decl — multi-layer files have several
   const digestRe = /^_deriveContainmentCorpusDigest_\w+$/;
+  // single in-order pass: a corpus whose entries do seed-arithmetic always
+  // follows the seed it references (TDZ), so evaluating corpus decls as they
+  // appear keeps earlier-seed bindings live — and each seed check pairs with
+  // the most recent corpus (last-wins), which is the pairing BLA emits.
   for (let i = 0; i < body.length; i++) {
     const stmt = body[i];
     if (stmt.type !== "VariableDeclaration") continue;
     for (const d of stmt.declarations) {
+      if (d.id?.type === "Identifier" && /^_interlockSafetyCorpus_\w+$/.test(d.id.name)) {
+        const r = ev0(d.init);
+        if (r.known && Array.isArray(r.value)) corpusEntries = r.value;
+        continue;
+      }
       if (d.id?.type !== "Identifier" || d.init?.type !== "BinaryExpression" ||
           (d.init.operator !== "|" && d.init.operator !== "+")) continue;
       const rhs = d.init.right;
@@ -799,6 +805,10 @@ export function dehardenJs(source, { filename = "input.js" } = {}) {
         seedValue = base.known ? (base.value | bit0) | 0 : bit0;
         seedDeclIndex = i;
         report.seedResolved = true;
+        // bind immediately: later digest checks in a multi-layer hardened
+        // file can express their expected value over this seed.
+        eval0Consts.set(seedName, seedValue);
+        seedBindings.push({ name: seedName, value: seedValue, index: i });
       }
     }
   }
@@ -821,7 +831,9 @@ export function dehardenJs(source, { filename = "input.js" } = {}) {
   // references inside opaque predicates until folded, which would make them
   // look injected to the reference-based rules below.
   const constValues = new Map();
-  if (seedName && seedValue !== null) constValues.set(seedName, seedValue);
+  // bind EVERY resolved seed — multi-layer hardened code references them all
+  // inside opaque predicates that must fold before statement classification.
+  for (const b of seedBindings) constValues.set(b.name, b.value);
   const seedEval = makeEvaluator(constValues);
   for (const stmt of ast.program.body) {
     if (stmt.type !== "VariableDeclaration" || stmt.kind !== "const") continue;
@@ -1214,9 +1226,12 @@ export function dehardenJs(source, { filename = "input.js" } = {}) {
   // ---- Pass 5: dangling-ref + export surface audit, generate
   const dangling = new Set();
   const exportNames = new Set();
+  const referenced = new Set();
+  const declaredTop = new Set();
   traverse(ast, {
     ReferencedIdentifier(path) {
       const n = path.node.name;
+      referenced.add(n);
       if (injectedNames.has(n)) dangling.add(n);
     },
     AssignmentExpression(path) {
@@ -1241,8 +1256,35 @@ export function dehardenJs(source, { filename = "input.js" } = {}) {
     },
     ExportDefaultDeclaration() { exportNames.add("default"); },
   });
+  for (const s of ast.program.body) {
+    if (s.type === "VariableDeclaration") {
+      for (const d of s.declarations) if (d.id?.type === "Identifier") declaredTop.add(d.id.name);
+    } else if (s.id?.type === "Identifier") declaredTop.add(s.id.name);
+  }
   report.danglingRefs = [...dangling];
   report.exportSurface = [...exportNames].filter(Boolean);
+
+  // seeds whose decls were removed as machinery but are still referenced by
+  // surviving code (multi-layer hardening entangles seeds into real exprs)
+  // get rebound to their folded constants — BLA's own deterministic values.
+  // A seed shape-removed outside injectedNames never reached `dangling`, so
+  // check referenced-minus-declared directly.
+  const rebound = [];
+  for (const b of seedBindings) {
+    if (!referenced.has(b.name) || declaredTop.has(b.name)) continue;
+    // ast.program.body was rebuilt by earlier passes — splice into the
+    // live array, not the stale pass-1 reference.
+    const live = ast.program.body;
+    live.splice(Math.min(b.index, live.length), 0,
+      t.variableDeclaration("var", [t.variableDeclarator(
+        t.identifier(b.name), t.valueToNode(b.value))]));
+    dangling.delete(b.name);
+    rebound.push({ name: b.name, value: b.value });
+  }
+  if (rebound.length) {
+    report.danglingRefs = [...dangling];
+    report.seedsRebound = rebound;
+  }
 
   let code = generate(ast, { comments: true, compact: false }).code;
   // drop BLA honey sourcemap trailer (+ any injected marker comments)
