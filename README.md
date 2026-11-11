@@ -228,11 +228,15 @@ Where BLA destroyed or mutated information in place, `src/recovery/` provides th
 
 ## 🧪 Adversarial Fixture Standings
 
+**Live end-to-end proof** — `scripts/live-matrix.mjs` runs real `bla-agents@3.2.4 protect` on freshly generated plain artifacts, cleans with BLADE, and verifies recovery. Current result across **all four intensities** (stealth, balanced, maximum, bankrupt): **302/302 checks pass** — byte-exact restore on 10 append-only formats, marker-free + behavior-identical on the rest, with `license-core.js` still executing `validate → valid:true, enterprise-unlimited` after cleaning.
+
 Hand-built hostile inputs in `test-fixtures/adversarial/` exercise every distinguisher — polyglots, double-hardening, name collisions, marker-in-content traps, malformed inputs:
 
 | Suite | Result | Notes |
 | :--- | :--- | :--- |
-| Core `scripts/verify.mjs` | **29/29** | byte-exact + behavioral equivalence |
+| **Live matrix** `scripts/live-matrix.mjs` | **302/302** | real BLA 3.2.4 × 4 intensities × ~25 artifacts |
+| Intensity corpus `intensity/run.mjs` | **63/63** | byte-exact/behavioral at all levels |
+| Core `scripts/verify.mjs` | **37/37** | byte-exact + behavioral equivalence |
 | ASAR | **29/29** | pickle edge cases, unpacked entries, proto-pollution |
 | ZIP/APK | **29/29** | ZIP64, fake EOCD, SFX, signing blocks, nested archives |
 | Native (+fuses) | **25/25** + **10/10** | extended ELF numbering, V2 trailers, fuse sentinels |

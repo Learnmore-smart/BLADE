@@ -39,7 +39,9 @@
     "test:sqlite": "node test-fixtures/adversarial/sqlite/adversarial-sqlite.mjs",
     "test:uf2": "node test-fixtures/adversarial/uf2/run-tests.mjs",
     "test:wasm": "node test-fixtures/adversarial/wasm/run-adversarial.mjs",
-    "test:zip": "node test-fixtures/adversarial/zip/run-adversarial.mjs"
+    "test:zip": "node test-fixtures/adversarial/zip/run-adversarial.mjs",
+    "test:intensity": "node test-fixtures/adversarial/intensity/run.mjs",
+    "test:live": "node scripts/live-matrix.mjs"
   },
   "keywords": [
     "reverse-engineering",
