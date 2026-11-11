@@ -6,8 +6,9 @@
 //   node src/cli.mjs <input> [-o output] [--report out.json]
 //
 // All processing is local; nothing is uploaded.
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, extname, join } from "node:path";
+import { tmpdir } from "node:os";
 import { dehardenJs, looksBlaHardened } from "./js-deharden.mjs";
 import { scrubAsar, scrubWasm, scrubSqlite, scrubSafetensors, scrubGguf } from "./formats.mjs";
 import {
@@ -146,7 +147,16 @@ function main() {
       }
     }
   } else if (kind === "sqlite") {
-    const r = scrubSqlite(input, output); report = r.report;
+    // scrubSqlite is path-based (WAL checkpoint needs a real output file);
+    // under --dry-run, scrub to a throwaway temp path and delete it.
+    if (dryRun) {
+      const tmp = join(tmpdir(), `blade-dry-${process.pid}-${Date.now()}.sqlite`);
+      const r = scrubSqlite(input, tmp); report = r.report;
+      try { rmSync(tmp); } catch {}
+      report.note = (report.note ? report.note + "; " : "") + "dry-run — no artifact written";
+    } else {
+      const r = scrubSqlite(input, output); report = r.report;
+    }
   } else if (kind === "plist") {
     const isBin = buf.length >= 6 && buf.subarray(0, 6).toString("latin1") === "bplist";
     if (isBin) { const r = scrubBplist(buf); report = r.report; writeOut(output, r.buffer); }
