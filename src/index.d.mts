@@ -183,3 +183,24 @@ export function repairDex(buf: Buffer): {
   status: string;
 };
 export function preserveApkMeta(origLocal: Buffer, origCentral: Buffer): Buffer | null;
+
+// ---- evaluator (partial evaluation + corpus digest) ----
+/** Partial evaluator over Babel AST; depth-bounded, poisons on unknown. */
+export function makeEvaluator(constValues?: Map<string, unknown>): {
+  ev: (node: object) => { v: unknown } | unknown;
+};
+export function computeContainmentCorpusDigest(
+  entries: Array<{ coupledAnchorSymbol: unknown; triggerPayload: unknown }>,
+  seedInput?: number,
+): number;
+export function repairCorpusDigest(
+  entries: Array<{ coupledAnchorSymbol: unknown; triggerPayload: unknown }>,
+  expected: number,
+): {
+  entry: number;
+  field: string;
+  charIndex: number;
+  oldChar: string;
+  newChar: string;
+  newText: string;
+} | null;

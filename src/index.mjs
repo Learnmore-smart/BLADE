@@ -34,3 +34,6 @@ export {
 export {
   salvageZipMember, triagePcapTail, repairDex, preserveApkMeta, detectEvmPad,
 } from "./recovery/salvage.mjs";
+export {
+  makeEvaluator, computeContainmentCorpusDigest, repairCorpusDigest,
+} from "./evaluator.mjs";
