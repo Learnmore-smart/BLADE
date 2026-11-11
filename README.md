@@ -230,13 +230,13 @@ Where BLA destroyed or mutated information in place, `src/recovery/` provides th
 
 ## 🧪 Adversarial Fixture Standings
 
-**Live end-to-end proof** — `scripts/live-matrix.mjs` runs real `bla-agents@3.2.4 protect` on freshly generated plain artifacts, cleans with BLADE, and verifies recovery. Current result across **all four intensities** (stealth, balanced, maximum, bankrupt): **302/302 checks pass** — byte-exact restore on 10 append-only formats, marker-free + behavior-identical on the rest, with `license-core.js` still executing `validate → valid:true, enterprise-unlimited` after cleaning.
+**Live end-to-end proof** — `scripts/live-matrix.mjs` runs real `bla-agents@3.2.4 protect` on freshly generated plain artifacts, cleans with BLADE, and verifies recovery. Current result across **all four intensities** (stealth, balanced, maximum, bankrupt): **370/370 checks pass** — byte-exact restore on 10+ append-only formats, marker-free + behavior-identical on the rest, with `license-core.js` still executing `validate → valid:true, enterprise-unlimited` after cleaning. The matrix also exercises **double-hardening** (`protect` output fed back through `protect`) on the JS/WASM artifacts — cleaned 2x output executes identically with zero machinery residue — and BLA's own `audit` scores cleaned JS **93/100 UNPROTECTED** (hardened input: 2/100). Triple-harden spot-checks: `Main.class`, `classes.dex`, `app.pyc`, `kernel.ptx`, `token.evm` byte-exact; `seal.wasm` reaches the documented name-destruction ceiling (code/type sections byte-identical).
 
 Hand-built hostile inputs in `test-fixtures/adversarial/` exercise every distinguisher — polyglots, double-hardening, name collisions, marker-in-content traps, malformed inputs:
 
 | Suite | Result | Notes |
 | :--- | :--- | :--- |
-| **Live matrix** `scripts/live-matrix.mjs` | **302/302** | real BLA 3.2.4 × 4 intensities × ~25 artifacts |
+| **Live matrix** `scripts/live-matrix.mjs` | **370/370** | real BLA 3.2.4 × 4 intensities × ~25 artifacts + double-harden + `bla audit` |
 | Intensity corpus `intensity/run.mjs` | **63/63** | byte-exact/behavioral at all levels |
 | Core `scripts/verify.mjs` | **37/37** | byte-exact + behavioral equivalence |
 | ASAR | **29/29** | pickle edge cases, unpacked entries, proto-pollution |
@@ -244,13 +244,15 @@ Hand-built hostile inputs in `test-fixtures/adversarial/` exercise every disting
 | Native (+fuses) | **25/25** + **10/10** | extended ELF numbering, V2 trailers, fuse sentinels |
 | BEAM | **26/26** | polyglot `B0xy` killed via name-index bounds |
 | JS | **14/14** | machinery-name collisions kept; double-harden chains |
+| JS v3.2.4 emissions | **9/9** | live BLA output shapes; protect→protect→protect chains; sidecar-entangled wasm |
+| JVM | **24/24** | constant-pool stuffing, decoy-run cut+neutralize, degenerate classes |
 | WASM | **11/11** | export floods, custom sections |
 | .NET | **12/12** | late-BSJB routing |
 | DEX | **19/19** | 16 PASS + 3 malformed-input (repaired/preserved) |
 | SQLite | **12/13** | case 04 = proven keep+flag (see ceilings) |
 | Python | all syntax-OK | incl. `d1_double` double-harden → clean `main()` |
 | EVM | reachable-prefix | merged pads: reachable code kept, dead tails dropped |
-| JVM / PCAP / bunfs | documented / **5/5** | stale-label ceilings; sidecars tombstoned |
+| PCAP / bunfs | documented / **5/5** | tail salvage; sidecars tombstoned |
 
 ---
 
@@ -265,6 +267,9 @@ Honest ceilings only — everything below is destroyed information or out-of-sco
 - **Owned dead bytes past the last reachable EVM target**: merged-pad upper bound is unencoded; the reachable prefix is the provable bound.
 - **Runtime-only deception** (live CDP/Frida/inspector, memory-diff): a static pipeline can't observe live behavior — counter-shield artifacts are emitted instead.
 - **Code-position marker references** (a real `probe_canary_honeypot(0)` *call* in user code): deleting a statement changes semantics — kept + `residualMarkers` flagged.
+- **Repeatedly-hardened WASM export names**: at maximum/bankrupt BLA renames exports (`ops_*`); a second pass renames them again. The `(kind,idx)` export map and code sections recover byte-identically — the original names are destroyed information (inferred fallbacks emitted in the `name` section).
+- **ASAR header `integrity` blocks added by `harden`**: BLA's project mode writes SHA256 integrity metadata that didn't exist in the source; members recover residue-free but the header schema can't be un-added.
+- **BLA's own re-protection refusals**: e.g. BLA refuses `protect` on an already-hardened ZIP ("entries overlap the reserved output namespace") — a BLA-side limit, surfaced as `bla refused/unsupported` skips in the live matrix.
 
 ---
 
