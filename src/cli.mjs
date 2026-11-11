@@ -35,6 +35,7 @@ options:
   --report <path>    write the full JSON report to <path>
   --quiet            suppress the report dump on stdout
   --verbose          never truncate the report on stdout
+  --dry-run          analyze only — write no artifact or sidecar files
   --help, -h         show this text
   --version          print the blade version
 
@@ -50,8 +51,10 @@ function main() {
   const rIdx = args.indexOf("--report");
   const quiet = args.includes("--quiet");
   const verbose = args.includes("--verbose");
+  const dryRun = args.includes("--dry-run");
+  const writeOut = dryRun ? () => {} : writeFileSync;
   const VALUE_FLAGS = new Set(["-o", "--report"]);
-  const FLAG_SET = new Set(["-o", "--report", "--quiet", "--verbose", "--help", "-h", "--version"]);
+  const FLAG_SET = new Set(["-o", "--report", "--quiet", "--verbose", "--dry-run", "--help", "-h", "--version"]);
   for (const a of args) {
     if (a.startsWith("-") && !FLAG_SET.has(a)) {
       console.error(`blade: unknown flag ${a}\n\n${USAGE}`);
@@ -86,8 +89,8 @@ function main() {
     const src = buf.toString("utf8");
     const r = dehardenJs(src, { filename: basename(input) });
     report = { format: "js", ...r.report };
-    if (r.report.hardened) writeFileSync(output, r.code);
-    else { writeFileSync(output, r.code); report.note = "no BLA markers found — passthrough"; }
+    if (r.report.hardened) writeOut(output, r.code);
+    else { writeOut(output, r.code); report.note = "no BLA markers found — passthrough"; }
   } else if (kind === "asar") {
     // `unpacked` entries live in the sibling <input>.unpacked/ dir — feed them
     // in for integrity checks and re-emit whatever survives to
@@ -100,54 +103,54 @@ function main() {
       },
     });
     report = r.report;
-    writeFileSync(output, r.buffer);
+    writeOut(output, r.buffer);
     if (r.unpackedExternals?.length) {
       for (const u of r.unpackedExternals) {
         const fp = join(`${output}.unpacked`, u.path);
-        mkdirSync(dirname(fp), { recursive: true });
-        writeFileSync(fp, u.content);
+        if (!dryRun) mkdirSync(dirname(fp), { recursive: true });
+        writeOut(fp, u.content);
       }
     }
   } else if (kind === "wasm") {
-    const r = scrubWasm(buf); report = r.report; writeFileSync(output, r.buffer);
+    const r = scrubWasm(buf); report = r.report; writeOut(output, r.buffer);
   } else if (kind === "sqlite") {
     const r = scrubSqlite(input, output); report = r.report;
   } else if (kind === "safetensors") {
-    const r = scrubSafetensors(buf); report = r.report; writeFileSync(output, r.buffer);
+    const r = scrubSafetensors(buf); report = r.report; writeOut(output, r.buffer);
   } else if (kind === "gguf") {
-    const r = scrubGguf(buf); report = r.report; writeFileSync(output, r.buffer);
+    const r = scrubGguf(buf); report = r.report; writeOut(output, r.buffer);
   } else if (kind === "native") {
-    const r = scrubNative(buf); report = r.report; writeFileSync(output, r.buffer);
+    const r = scrubNative(buf); report = r.report; writeOut(output, r.buffer);
   } else if (kind === "dex") {
-    const r = scrubDex(buf); report = r.report; writeFileSync(output, r.buffer);
+    const r = scrubDex(buf); report = r.report; writeOut(output, r.buffer);
   } else if (kind === "il2cpp") {
-    const r = scrubIl2cpp(buf); report = r.report; writeFileSync(output, r.buffer);
+    const r = scrubIl2cpp(buf); report = r.report; writeOut(output, r.buffer);
   } else if (kind === "dotnet") {
-    const r = scrubDotnet(buf); report = r.report; writeFileSync(output, r.buffer);
+    const r = scrubDotnet(buf); report = r.report; writeOut(output, r.buffer);
   } else if (kind === "evm") {
-    const r = scrubEvm(buf); report = r.report; writeFileSync(output, r.buffer);
+    const r = scrubEvm(buf); report = r.report; writeOut(output, r.buffer);
   } else if (kind === "ptx") {
-    const r = scrubPtx(buf.toString("utf8")); report = r.report; writeFileSync(output, r.code);
+    const r = scrubPtx(buf.toString("utf8")); report = r.report; writeOut(output, r.code);
   } else if (kind === "jvm") {
-    const r = scrubJvm(buf); report = r.report; writeFileSync(output, r.buffer);
+    const r = scrubJvm(buf); report = r.report; writeOut(output, r.buffer);
   } else if (kind === "plist") {
     const isBin = buf.length >= 6 && buf.subarray(0, 6).toString("latin1") === "bplist";
-    if (isBin) { const r = scrubBplist(buf); report = r.report; writeFileSync(output, r.buffer); }
-    else { const r = scrubPlistXml(buf.toString("utf8")); report = r.report; writeFileSync(output, r.code); }
+    if (isBin) { const r = scrubBplist(buf); report = r.report; writeOut(output, r.buffer); }
+    else { const r = scrubPlistXml(buf.toString("utf8")); report = r.report; writeOut(output, r.code); }
   } else if (kind === "pcap") {
-    const r = scrubPcap(buf); report = r.report; writeFileSync(output, r.buffer);
+    const r = scrubPcap(buf); report = r.report; writeOut(output, r.buffer);
   } else if (kind === "uf2") {
-    const r = scrubUf2(buf); report = r.report; writeFileSync(output, r.buffer);
+    const r = scrubUf2(buf); report = r.report; writeOut(output, r.buffer);
   } else if (kind === "beam") {
-    const r = scrubBeam(buf); report = r.report; writeFileSync(output, r.buffer);
+    const r = scrubBeam(buf); report = r.report; writeOut(output, r.buffer);
   } else if (kind === "pyc") {
-    const r = scrubPyc(buf); report = r.report; writeFileSync(output, r.buffer);
+    const r = scrubPyc(buf); report = r.report; writeOut(output, r.buffer);
   } else if (kind === "zip") {
-    const r = scrubZip(buf); report = r.report; writeFileSync(output, r.buffer);
+    const r = scrubZip(buf); report = r.report; writeOut(output, r.buffer);
   } else if (kind === "py") {
-    const r = scrubPySource(buf.toString("utf8")); report = r.report; writeFileSync(output, r.code);
+    const r = scrubPySource(buf.toString("utf8")); report = r.report; writeOut(output, r.code);
   } else if (kind === "html") {
-    const r = scrubHtml(buf.toString("utf8")); report = r.report; writeFileSync(output, r.code);
+    const r = scrubHtml(buf.toString("utf8")); report = r.report; writeOut(output, r.code);
   } else if (kind === "sourcemap") {
     const r = inspectSourcemap(buf.toString("utf8")); report = r;
     // Original mappings are destroyed — but the passthrough map emitted is
@@ -167,23 +170,23 @@ function main() {
       } catch {}
     }
     const rec = reconstructSourceMap(parsed, dehardenedJs, buf.length);
-    writeFileSync(output, JSON.stringify(rec.map));
+    writeOut(output, JSON.stringify(rec.map));
     report.action = r.honeyMap
       ? (dehardenedJs ? "reconstructed-identity-map" : "skeleton-map")
       : "passthrough";
     report.sourceMapRecovery = rec.status;
   } else if (kind === "header") {
     const r = inspectShieldHeader(buf.toString("utf8")); report = r;
-    if (r.decoyHeader) { writeFileSync(output, headerTombstone()); report.action = "excluded-decoy-header"; }
-    else writeFileSync(output, buf);
+    if (r.decoyHeader) { writeOut(output, headerTombstone()); report.action = "excluded-decoy-header"; }
+    else writeOut(output, buf);
   } else if (kind === "bunfs-snapshot") {
     // standalone decoy module graph — 100% honeypot surface, tombstone it
     const r = inspectBunfsSnapshot(buf); report = r;
-    writeFileSync(output, bunfsTombstone()); report.action = "excluded-decoy-graph";
+    writeOut(output, bunfsTombstone()); report.action = "excluded-decoy-graph";
   } else if (kind === "sidecar-note") {
     // strip=>fail binding record only — tombstone it
     const r = inspectSidecarNote(buf); report = r;
-    writeFileSync(output, sidecarNoteTombstone()); report.action = "excluded-decoy-note";
+    writeOut(output, sidecarNoteTombstone()); report.action = "excluded-decoy-note";
   } else {
     console.error(`unrecognized format: ${input}`);
     process.exit(1);
@@ -209,7 +212,7 @@ function main() {
   if (hints.length > 0) {
     const cs = emitRuntimeCounterShield(hints);
     const a = output + ".blade-counter.js", n = output + ".blade-cdp-notes.md", s = output + ".blade-tee-stub.js";
-    writeFileSync(a, cs.fridaScript); writeFileSync(n, cs.cdpNotes); writeFileSync(s, cs.teeStubSurface);
+    writeOut(a, cs.fridaScript); writeOut(n, cs.cdpNotes); writeOut(s, cs.teeStubSurface);
     report.runtimeCounterShield = { fridaScript: a, cdpNotes: n, teeStubSurface: s, hints };
   }
 
