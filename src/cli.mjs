@@ -152,6 +152,7 @@ function main() {
   const input = args.find((a) => !a.startsWith("-"));
   const oIdx = args.indexOf("-o");
   const rIdx = args.indexOf("--report");
+  const quiet = args.includes("--quiet");
   if (!input) {
     console.error(USAGE);
     process.exit(2);
@@ -304,7 +305,9 @@ function main() {
     mkdirSync(dirname(args[rIdx + 1]), { recursive: true });
     writeFileSync(args[rIdx + 1], json);
   }
-  console.log(`[BLADE] ${kind} ${input} -> ${output}`);
-  console.log(json.length > 1200 ? json.slice(0, 1200) + "\n ... (truncated; see --report)" : json);
+  if (!quiet) {
+    console.log(`[BLADE] ${kind} ${input} -> ${output}`);
+    console.log(json.length > 1200 ? json.slice(0, 1200) + "\n ... (truncated; see --report)" : json);
+  }
 }
 main();
