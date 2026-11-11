@@ -42,7 +42,16 @@ function isDecoyAsarPath(p) {
 }
 const ASAR_CONTENT_MARKERS = /_interlockSafetyCorpus_|ring0-slot|hardware-tee-bridge|bla-enclave-shield/;
 export function scrubAsar(buf, opts = {}) {
-  const { root, dataOffset, buf: raw } = readAsar(buf);
+  let parsed;
+  try {
+    parsed = readAsar(buf);
+  } catch (e) {
+    // Truncated/corrupt archive (a .asar reaches here via the extension
+    // fallback even when its magic is gone): keep the bytes, flag the
+    // uncertainty — never crash on unparseable input.
+    return { buffer: buf, report: { format: "asar", hardened: false, note: `unparseable archive — passthrough (${e.message})` } };
+  }
+  const { root, dataOffset, buf: raw } = parsed;
   const kept = []; // {path, entry, content}
   const dirsKept = []; // real directory nodes (materialize even when empty)
   const unpackedExternals = []; // {path, content} — caller writes <out>.unpacked/
