@@ -27,6 +27,8 @@
 // (a copy is made before patching). Everything downstream of this file is
 // best-effort recovery and is annotated as such.
 
+import { detectEvmPad } from "./salvage.mjs";
+
 // ===========================================================================
 // 1. Electron fuse defaults
 // ===========================================================================
@@ -1098,6 +1100,14 @@ function ggufSkipValue(buf, off, type, depth = 0) {
   }
   return type in GGUF_VALUE_SCALARS ? off + GGUF_VALUE_SCALARS[type] : -1;
 }
+function evmDeclaredEnd(buf) {
+  // EVM has no header — the "declared end" is where confident decoy padding
+  // begins (junk opcode runs + marker tail). Returns -1 unless the pad
+  // detector proves a boundary, so clean bytecode never reads as overlay.
+  const r = detectEvmPad(buf);
+  return r.padStart !== null && r.padStart !== undefined ? r.padStart : -1;
+}
+
 function ggufDeclaredEnd(buf) {
   if (buf.length < 24 || buf.toString("ascii", 0, 4) !== "GGUF") return -1;
   const kvCount = Number(buf.readBigUInt64LE(16));
@@ -1193,6 +1203,7 @@ const DECLARED_END = {
   asar: asarDeclaredEnd,
   class: jvmDeclaredEnd, jvm: jvmDeclaredEnd,
   gguf: ggufDeclaredEnd,
+  evm: evmDeclaredEnd,
 };
 
 function detectDeclaredEnd(buf, hint) {
@@ -1217,6 +1228,7 @@ function detectDeclaredEnd(buf, hint) {
         ["asar", asarDeclaredEnd],
         ["jvm", jvmDeclaredEnd],
         ["gguf", ggufDeclaredEnd],
+        ["evm", evmDeclaredEnd],
       ];
   for (const [fmt, fn] of order) {
     try {
