@@ -351,10 +351,29 @@ export function scrubNative(buf) {
           const nm = secNames[i];
           if ((nm === ".go.buildinfo" || nm === ".isolate") && s.offset + s.size <= out.length) {
             const region = out.subarray(s.offset, s.offset + s.size);
-            if (has(region, "[BLA-GO-MAPPED]") || has(region, "[BLA-FLUTTER-MAPPED]") ||
-                has(region, "[BLA-GO-BUILDINFO]") || has(region, "[BLA-FLUTTER-POOL-EXHAUST]")) {
-              region.fill(0);
-              report.decoys.push({ kind: "section-overwrite", section: nm, note: "BLA overwrote original section in place — decoy zeroed, original irrecoverable" });
+            const marks = ["[BLA-GO-MAPPED]", "[BLA-FLUTTER-MAPPED]", "[BLA-GO-BUILDINFO]", "[BLA-FLUTTER-POOL-EXHAUST]"];
+            let first = -1;
+            for (const m of marks) {
+              const at = region.indexOf(m);
+              if (at >= 0 && (first < 0 || at < first)) first = at;
+            }
+            if (first >= 0) {
+              // BLA appends its decoy after any real bytes inside the section
+              // slack — zero only from the first marker on, keeping a real
+              // prefix (BLA's own fixtures leave fixture bytes there).
+              let zeroFrom = first;
+              // go-flutter-exhaustion also plants a fake `\xff Go buildinf:`
+              // magic + uvarint claim BEFORE the marker. If the span from that
+              // magic to the marker lacks real buildinfo fields ("go1.",
+              // "path\t"), the whole span is the plant — zero from the magic.
+              const goMagic = Buffer.from("\xff Go buildinf:", "latin1");
+              const gAt = region.indexOf(goMagic);
+              if (gAt >= 0 && gAt < first) {
+                const span = region.subarray(gAt, first);
+                if (!has(span, "go1.") && !has(span, "path\t") && !has(span, "build\t")) zeroFrom = gAt;
+              }
+              region.fill(0, zeroFrom);
+              report.decoys.push({ kind: "section-overwrite", section: nm, bytesCleansed: s.size - zeroFrom, note: zeroFrom > 0 ? `decoy zeroed from +0x${zeroFrom.toString(16)} — real prefix kept` : "BLA overwrote original section in place — decoy zeroed, original irrecoverable" });
             }
           }
         }

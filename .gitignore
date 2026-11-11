@@ -50,3 +50,4 @@ test-fixtures/adversarial/wasm/e2e-bankrupt.wasm
 _live/
 audit-tmp/
 dh/
+dh3/

@@ -654,7 +654,9 @@ export function scrubSafetensors(buf) {
         }
         meta[mk] = mv;
       }
-      out[k] = meta;
+      // Entirely-decoy metadata → omit the block; recreating an empty
+      // `__metadata__` is noise the original never had.
+      if (Object.keys(meta).length > 0 || Object.keys(v).length === 0) out[k] = meta;
       continue;
     }
     // BLA never injects tensor descriptors — only __metadata__ keys and a

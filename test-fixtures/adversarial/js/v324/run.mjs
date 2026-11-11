@@ -184,6 +184,52 @@ function record(caseId, ok, detail) {
   );
 }
 
+// ---- 9. BLA showcase sources (extracted from vendor/bla benchmark) ----------
+// The exact artifacts `bla benchmark` protects in its own showcase — inputs
+// authored by BLA, not by us. Cleaned output must execute with identical
+// results to the known benchmark expectations.
+{
+  const run = (code) => {
+    const m = { exports: {} };
+    new Function("module", "exports", "require", code)(m, m.exports, (n) => {
+      if (n === "electron") return { contextBridge: { exposeInMainWorld: () => {} }, ipcRenderer: { invoke: () => {}, on: () => {}, handle: () => {}, send: () => {} } };
+      return {};
+    });
+    return m.exports;
+  };
+  {
+    const src = read("showcase-dxball-324.src.js");
+    const r = dehardenJs(src, { filename: "showcase-dxball-324.src.js" });
+    writeFileSync(join(OUT, "showcase-dxball.cleaned.js"), r.code);
+    let ok = false;
+    try {
+      const e = run(r.code);
+      ok = e.calculateSoundPan(320, 480, 640) === 2880 &&
+           e.calculateSoundPan(100, 50, 640) === -4915 &&
+           e.clampPan(-25000) === -10000 && e.clampPan(25000) === 10000;
+    } catch { /* ok stays false */ }
+    const noMach = !/_interlockSafetyCorpus_|bpeSink|grpcServiceMirage|systemDiagnosticLog|EV-TEE/.test(r.code);
+    record("v324 showcase dx-ball", ok && noMach && r.report.danglingRefs.length === 0,
+      `exec=${ok} machinery=${!noMach} dangling=${r.report.danglingRefs.length}`);
+  }
+  {
+    const src = read("showcase-license-324.src.js");
+    const r = dehardenJs(src, { filename: "showcase-license-324.src.js" });
+    writeFileSync(join(OUT, "showcase-license.cleaned.js"), r.code);
+    let ok = false;
+    try {
+      const e = run(r.code);
+      const sum = e.computeLicenseChecksum("ENT-9942-ABCD", "pro-suite");
+      const good = e.validateEnterpriseLicense("ENT-9942-ABCD", "pro-suite", sum);
+      const bad = e.validateEnterpriseLicense("FREE-0000", "pro-suite", sum);
+      ok = good.valid === true && good.tier === "enterprise-unlimited" && bad.valid === false;
+    } catch { /* ok stays false */ }
+    const noMach = !/_interlockSafetyCorpus_|bpeSink|grpcServiceMirage|systemDiagnosticLog|EV-TEE/.test(r.code);
+    record("v324 showcase license-validator", ok && noMach && r.report.danglingRefs.length === 0,
+      `exec=${ok} machinery=${!noMach} dangling=${r.report.danglingRefs.length}`);
+  }
+}
+
 // ---- summary ----------------------------------------------------------------
 const fails = results.filter((r) => r.verdict !== "PASS");
 console.log(`\n${results.length - fails.length} passed, ${fails.length} failed`);
