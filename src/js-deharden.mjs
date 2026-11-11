@@ -995,8 +995,12 @@ export function dehardenJs(source, { filename = "input.js" } = {}) {
     /^\$[0-9a-f]{2}(Attest|Verify|Unseal|Derive|Seal|Reconcile|Decrypt|Compute|Validate|Check|Authenticate|Unlock)[A-Za-z]*_\w+$/.test(n);
   // Families real code never uses — hard evidence; call sites get swept.
   const HARD_FAMILY =
-    /^(stepShadowHeap|readSplitShare|shadowHeap|runtimeSeed|obligationFlood|labyrinthDispatch|scc_|diffFrontier|aliasedBufferIllusion|cdpShape|fridaCapture|fridaRealmRing|regexSearchMagnet|tokenSink|_shadowVault|_interlockSafetyCorpus|_deriveContainmentCorpusDigest|_runtimeState|_DISTRIBUTED_ASL3|_SELF_SEAL_TARGET)/;
-  const VOCAB_TEXT = /shadowHeap|shadowVault|enclave_|tpm2_pcr|SYMBOL_OFFSET_MANIFEST|EVIDENCE_CHAIN|build_digest=ev_|bla_canary_|PROTECTED_CANARY|CANARY_CREDENTIAL|HONEYPOT|enclave\.internal|RING0_SEALED|AF_VSOCK_RING0|HARDWARE_ENCLAVE_DELEGATED|attestationState/;
+    /^(stepShadowHeap|readSplitShare|shadowHeap|runtimeSeed|obligationFlood|labyrinthDispatch|scc_|diffFrontier|aliasedBufferIllusion|cdpShape|fridaCapture|fridaRealmRing|regexSearchMagnet|tokenSink|_shadowVault|_interlockSafetyCorpus|_deriveContainmentCorpusDigest|_runtimeState|_DISTRIBUTED_ASL3|_SELF_SEAL_TARGET|evidenceLedger_|grpcServiceMirage_|systemDiagnosticLog_|canaryCredentialHoneypot_)/;
+  // VOCAB_TEXT: BLA-invented payload vocabulary — enclave chaff terms plus
+  // the diagnostic-decoy / mirage record field names (remediationRabbitHole,
+  // protoPackage, dispatchFrame, delegatedToEnclave…) that real code never
+  // writes. These fire inside otherwise-plausibly-named decls.
+  const VOCAB_TEXT = /shadowHeap|shadowVault|enclave_|tpm2_pcr|SYMBOL_OFFSET_MANIFEST|EVIDENCE_CHAIN|build_digest=ev_|bla_canary_|PROTECTED_CANARY|CANARY_CREDENTIAL|HONEYPOT|enclave\.internal|RING0_SEALED|AF_VSOCK_RING0|HARDWARE_ENCLAVE_DELEGATED|attestationState|remediationRabbitHole|protoPackage|dispatchFrame|delegatedToEnclave/;
   const suffixDeclNames = new Set();
   for (const s of body2) for (const n of stmtDeclaredNames(s)) if (matchesGeneric(n)) suffixDeclNames.add(n);
   const declsInjectedMachinery = (stmt) => {

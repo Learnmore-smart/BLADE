@@ -140,6 +140,27 @@ function record(caseId, ok, detail) {
   );
 }
 
+// ---- 7. double-hardened Electron bridge (IPC decoy data objects) ------------
+// protect(bridge) fed through protect again at maximum: decoy payload objects
+// (systemDiagnosticLog, evidenceLedger, grpcServiceMirage, canaryCredentialHoneypot)
+// survive cleaning under plausible names unless content-vocab fires.
+{
+  const src = read("double-bridge-324.src.js");
+  const r = dehardenJs(src, { filename: "double-bridge-324.src.js" });
+  writeFileSync(join(OUT, "double-bridge.cleaned.js"), r.code);
+  const channels =
+    ["notion:clipboard:read-rich", "notion:clipboard:write-rich", "notion:clipboard:selection-sync"]
+      .every((c) => r.code.includes(c)) &&
+    r.code.includes("contextBridge") && r.code.includes("setupMainClipboardHandlers");
+  const noDecoyData =
+    !/remediationRabbitHole|protoPackage|dispatchFrame|delegatedToEnclave|enclave\.zero_trust|_interlockSafetyCorpus_/.test(r.code);
+  record(
+    "v324 double-harden bridge",
+    channels && noDecoyData && r.report.danglingRefs.length === 0,
+    `channels=${channels} decoyData=${!noDecoyData} dangling=${r.report.danglingRefs.length}`,
+  );
+}
+
 // ---- summary ----------------------------------------------------------------
 const fails = results.filter((r) => r.verdict !== "PASS");
 console.log(`\n${results.length - fails.length} passed, ${fails.length} failed`);
