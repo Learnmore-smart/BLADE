@@ -13,6 +13,7 @@ const HAS_VENDOR_BLA = existsSync(path.join(ROOT, "vendor", "bla", "dist", "cli.
 // [name, script, needsVendorBla]
 const SUITES = [
   ["core", "scripts/verify.mjs", false],
+  ["detect", "scripts/test-detect.mjs", false],
   ["robustness", "scripts/robustness.mjs", false],
   ["js", "test-fixtures/adversarial/js/run-adversarial.mjs", true],
   ["js-324", "test-fixtures/adversarial/js/v324/run.mjs", false],
