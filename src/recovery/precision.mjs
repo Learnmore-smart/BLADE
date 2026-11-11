@@ -152,6 +152,15 @@ function estimatePreserved(orig, ranges, buf) {
   return buf.length ? (hit / buf.length) * 100 : 100;
 }
 
+/**
+ * Splice a dehardened .pyc back over the original bytes: keep every byte
+ * outside the removed marshal ranges from `origPyc` (byte-exact
+ * preservation), take only the corrected spans + patched counts from
+ * `dehardenedPyc`. Falls back to the dehardened buffer with a note when
+ * the splice can't be proven safe.
+ * @returns {{ buf: Buffer, bytePreservedPct: number, spliced: boolean,
+ *   removedBytes: number, patchedCounts: number, note?: string }}
+ */
 export function pycSurgicalSpans(origPyc, dehardenedPyc, removedRanges) {
   if (!removedRanges || removedRanges.length === 0) {
     return { buf: origPyc, bytePreservedPct: 100, spliced: false, removedBytes: 0, patchedCounts: 0 };
@@ -249,6 +258,14 @@ export function pycSurgicalSpans(origPyc, dehardenedPyc, removedRanges) {
 // tracks quote state, escapes, r/b/f/u prefixes, triple quotes, #-comments,
 // and f-string {...} expression holes (which are CODE — neutralization never
 // reaches inside them). Bytes outside literals are never touched.
+/**
+ * Neutralize marker runs inside Python string literals with `_` fill of
+ * identical length — removing them would shift offsets and split tokens.
+ * A quote-state tokenizer respects escapes, r/b/f/u prefixes, triple
+ * quotes and f-string holes (code — never neutralized). `comments: true`
+ * extends the sweep into `#` comments.
+ * @returns {{ code: string, neutralized: number }}
+ */
 export function neutralizePyLiteralMarkers(src, markers, { comments = false } = {}) {
   const flags = markers.flags.includes("g") ? markers.flags : markers.flags + "g";
   const rx = new RegExp(markers.source, flags);
@@ -392,6 +409,15 @@ const nameEntropy = (name) => {
   return h;
 };
 
+/**
+ * Score sqlite_master objects for decoy-likelihood: weighted signals
+ * (name vocab, entropy, DDL shape, row-bait patterns, cross-references)
+ * with per-object `verdict` of "drop"|"flag"|"keep" and reason traces.
+ * Drives scrubSqlite's keep+flag honesty — only "drop"-scored objects are
+ * ever removed.
+ * @param {Array<{type:string,name:string,tbl_name?:string,sql?:string}>} objects
+ * @returns {Array<{name:string,score:number,verdict:string,reasons:string[]}>}
+ */
 export function scoreSqliteObjects(objects) {
   return objects.map((o) => {
     const reasons = [];
@@ -472,6 +498,13 @@ const beamDecoyIndex = (name) =>
   /^Bl0[a-z]$/.test(name) ? parseInt(name.slice(2), 36) :
   /^B[0-9a-z]{3}$/.test(name) ? parseInt(name.slice(1), 36) : -1;
 
+/**
+ * Score a single BEAM chunk for decoy-likelihood when it appears without
+ * decoy siblings: checks BLA's head/tail payload shape, name pattern
+ * (Bla0..Bla9 / Bl0x / B###), position plausibility, and group context.
+ * A lone decoy that a real chunk could impersonate stays "keep".
+ * @returns {{ score: number, verdict: "drop"|"flag"|"keep", reason: string }}
+ */
 export function beamLoneDecoyScore(chunk) {
   const { name, payload, position, inDecoyGroup } = chunk;
   const pay = payload ?? Buffer.alloc(0);
@@ -575,6 +608,13 @@ const hasOp = (node, found = { v: false }) => {
   return found.v;
 };
 
+/**
+ * Detect BLA's opaque-seed guard variants in JS source by AST shape rather
+ * than literal text — catches the `typeof`-seed form, the
+ * `[fns].every(...) && D(0)===N` entangled form, and renamed declarators.
+ * @param {string} js
+ * @returns {Array<{name:string,kind:string,start:number,end:number}>}
+ */
 export function detectOpaqueSeedVariants(js) {
   let ast;
   try {
