@@ -1,6 +1,6 @@
 // Adversarial runner for scrubPySource (src/trailer.mjs).
 // Usage: node test-fixtures/adversarial/py/run.mjs
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -24,9 +24,21 @@ function protect(input, output, extra = []) {
   }
 }
 
+// Resolve a python interpreter that can ast.parse — the Windows `python`
+// Store stub exits non-zero, so probe before use.
+const PY = (() => {
+  for (const cand of [process.env.BLADE_PYTHON, "py", "python3", "python"]) {
+    if (!cand) continue;
+    const r = spawnSync(cand, ["-c", "import ast"], { stdio: "ignore" });
+    if (!r.error && r.status === 0) return cand;
+  }
+  return null;
+})();
+
 function pyCompile(file) {
+  if (!PY) return "SKIP: no python interpreter found — set BLADE_PYTHON";
   try {
-    execFileSync("python", ["-c", "import ast,sys; ast.parse(open(sys.argv[1],encoding='utf-8-sig').read())", file], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+    execFileSync(PY, ["-c", "import ast,sys; ast.parse(open(sys.argv[1],encoding='utf-8-sig').read())", file], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
     return "OK";
   } catch (e) {
     return "FAIL: " + String(e.stderr || e.message).trim().split("\n").pop();
