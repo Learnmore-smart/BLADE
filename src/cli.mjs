@@ -149,11 +149,26 @@ function main() {
   const args = process.argv.slice(2);
   if (args.includes("--help") || args.includes("-h")) { console.log(USAGE); process.exit(0); }
   if (args.includes("--version")) { console.log(VERSION); process.exit(0); }
-  const input = args.find((a) => !a.startsWith("-"));
   const oIdx = args.indexOf("-o");
   const rIdx = args.indexOf("--report");
   const quiet = args.includes("--quiet");
   const verbose = args.includes("--verbose");
+  const VALUE_FLAGS = new Set(["-o", "--report"]);
+  const FLAG_SET = new Set(["-o", "--report", "--quiet", "--verbose", "--help", "-h", "--version"]);
+  for (const a of args) {
+    if (a.startsWith("-") && !FLAG_SET.has(a)) {
+      console.error(`blade: unknown flag ${a}\n\n${USAGE}`);
+      process.exit(2);
+    }
+  }
+  for (const f of VALUE_FLAGS) {
+    const i = args.indexOf(f);
+    if (i !== -1 && (i + 1 >= args.length || args[i + 1].startsWith("-"))) {
+      console.error(`blade: ${f} requires a value\n\n${USAGE}`);
+      process.exit(2);
+    }
+  }
+  const input = args.find((a, i) => !a.startsWith("-") && args[i - 1] !== "-o" && args[i - 1] !== "--report");
   if (!input) {
     console.error(USAGE);
     process.exit(2);
