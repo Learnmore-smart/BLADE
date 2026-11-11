@@ -12,7 +12,7 @@ listed in "BLA 3.2.4 coverage" below.)
 node scripts/make-fixtures.mjs          # generate plain fixtures
 node vendor/bla/dist/cli.js protect <file> --intensity bankrupt --output test-fixtures/hardened
 node src/cli.mjs <input> [-o output] [--report report.json]
-node scripts/verify.mjs                 # full scrub + equivalence checks (29 checks)
+node scripts/verify.mjs                 # full scrub + equivalence checks (37 checks)
 ```
 
 ## How it works (adaptive, not "more tools")
