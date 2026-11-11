@@ -698,13 +698,26 @@ export function scrubPlistXml(text) {
   // BLAEnclaveVsockDelegationCID. Exact names only — a user's own
   // `BLAConfig`-style keys must survive.
   const BLA_KEY = "(?:BLACanaryCredential_\\d+|BLATransportEndpoint_\\d+|BLASystemDiagnostic_\\d+|BLABinaryPlistNestingDepthClaim|BLAEnclaveAttestationAuthority|BLAEnclaveVsockDelegationCID)";
-  out = out.replace(new RegExp(`[ \\t]*<key>${BLA_KEY}<\\/key>\\r?\\n[ \\t]*<(string|integer|real|data)\\b[^>]*>[^<]*<\\/\\1>\\r?\\n?`, "g"), () => { removedKeys++; return ""; });
-  out = out.replace(new RegExp(`[ \\t]*<key>${BLA_KEY}<\\/key>\\r?\\n[ \\t]*<(true|false)\\/>\\r?\\n?`, "g"), () => { removedKeys++; return ""; });
+  // Whitespace AND comments may sit between the key and its value
+  // (`<key>BLA..</key>\n<!-- note -->\n<string>`), and line style may be
+  // LF, CRLF or classic-Mac CR.
+  const GAP = "(?:\\s|<!--[\\s\\S]*?-->)*";
+  out = out.replace(new RegExp(`[ \\t]*<key>${BLA_KEY}<\\/key>${GAP}<(string|integer|real|data|date)\\b[^>]*>[^<]*<\\/\\1>${GAP}`, "g"), () => { removedKeys++; return ""; });
+  out = out.replace(new RegExp(`[ \\t]*<key>${BLA_KEY}<\\/key>${GAP}<(true|false)\\/>${GAP}`, "g"), () => { removedKeys++; return ""; });
   // nested-plist values: <key>BLA…</key> followed by a whole <dict>…</dict>
-  out = out.replace(new RegExp(`[ \\t]*<key>${BLA_KEY}<\\/key>\\r?\\n[ \\t]*<dict>[\\s\\S]*?<\\/dict>\\r?\\n?`, "g"), () => { removedKeys++; return ""; });
+  // or <array>…</array>
+  out = out.replace(new RegExp(`[ \\t]*<key>${BLA_KEY}<\\/key>${GAP}<(dict|array)>[\\s\\S]*?<\\/\\2>${GAP}`, "g"), () => { removedKeys++; return ""; });
   const hardened = removedKeys > 0 || out !== text;
   if (hardened && !out.endsWith("\n")) out += "\n";
-  return { code: out, report: { format: "plist-xml", hardened, decoyKeysDropped: removedKeys, internalSubsetRemoved: !/\[\s*\]/.test(out.match(/<!DOCTYPE[^>]*>/i)?.[0] ?? "") } };
+  // keep+flag: surviving BLA-prefixed keys whose names don't match the known
+  // emission set are indistinguishable from real vendor keys (BLAVersion,
+  // BLATeamID) — never cut on the prefix, but surface them for the analyst.
+  const suspiciousKeys = hardened
+    ? [...out.matchAll(/<key>(BLA[A-Za-z0-9_]+)<\/key>/g)]
+        .map((m) => m[1])
+        .filter((k) => !new RegExp(`^${BLA_KEY}$`).test(k))
+    : [];
+  return { code: out, report: { format: "plist-xml", hardened, decoyKeysDropped: removedKeys, internalSubsetRemoved: !/\[\s*\]/.test(out.match(/<!DOCTYPE[^>]*>/i)?.[0] ?? ""), ...(suspiciousKeys.length ? { suspiciousKeys } : {}) } };
 }
 export function scrubBplist(buf) {
   const cut = cutAtMarker(buf, "BLA_BPLIST_DEPTH_GUARD_", 1);
