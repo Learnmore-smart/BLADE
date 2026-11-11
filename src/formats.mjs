@@ -641,7 +641,7 @@ export function scrubGguf(buf) {
   const tensorCount = buf.readBigUInt64LE(8);
   const kvCount = Number(buf.readBigUInt64LE(16));
   let off = 24;
-  const kept = [], dropped = [], suspicious = [];
+  const kept = [], dropped = [], suspicious = [], arrayElemsFiltered = [];
   for (let i = 0; i < kvCount; i++) {
     const start = off;
     let key, afterKey, type, end;
@@ -660,6 +660,28 @@ export function scrubGguf(buf) {
     // (e.g. general.description) — detect by value, not just key name.
     const strVal = type === GGUF_STR ? buf.subarray(afterKey + 12, end).toString("utf8") : null;
     if (GGUF_DECOY_KEY.test(key) || (strVal !== null && BLA_VALUE_MARKER.test(strVal))) dropped.push(key);
+    else if (type === GGUF_ARR && buf.readUInt32LE(afterKey + 4) === GGUF_STR) {
+      // armor strings hide inside string ARRAYS under legit keys — filter
+      // bait elements and rebuild rather than dropping the whole KV (the
+      // clean elements are real data).
+      const n = Number(buf.readBigUInt64LE(afterKey + 8));
+      let p = afterKey + 16, ok = true;
+      const elems = [];
+      for (let j = 0; j < n; j++) {
+        const e = skipGValue(buf, p, GGUF_STR);
+        if (e < 0) { ok = false; break; }
+        elems.push(buf.subarray(p, e)); p = e;
+      }
+      if (ok && p === end) {
+        const clean = elems.filter((el) => !BLA_VALUE_MARKER.test(el.subarray(8).toString("utf8")));
+        if (clean.length === 0) dropped.push(key);
+        else if (clean.length < elems.length) {
+          const cnt = Buffer.alloc(8); cnt.writeBigUInt64LE(BigInt(clean.length));
+          kept.push(Buffer.concat([buf.subarray(start, afterKey + 4), Buffer.from([GGUF_STR, 0, 0, 0]), cnt, ...clean]));
+          arrayElemsFiltered.push(`${key}:${elems.length - clean.length}`);
+        } else kept.push(buf.subarray(start, end));
+      } else kept.push(buf.subarray(start, end));
+    }
     else {
       if (GGUF_SUSPICIOUS_KEY.test(key)) suspicious.push(key);
       kept.push(buf.subarray(start, end));
@@ -698,6 +720,6 @@ export function scrubGguf(buf) {
   hdr.writeBigUInt64LE(BigInt(kept.length), 16);
   return {
     buffer: Buffer.concat([hdr, ...kept, rest]),
-    report: { format: "gguf", kvIn: kvCount, kvKept: kept.length, kvDropped: dropped, ...(suspicious.length ? { suspiciousKeys: suspicious } : {}), ...(kvCountSuspicious >= 2 ? { kvCountUnderestimated: kvCountSuspicious } : {}) },
+    report: { format: "gguf", kvIn: kvCount, kvKept: kept.length, kvDropped: dropped, ...(suspicious.length ? { suspiciousKeys: suspicious } : {}), ...(kvCountSuspicious >= 2 ? { kvCountUnderestimated: kvCountSuspicious } : {}), ...(arrayElemsFiltered.length ? { arrayElemsFiltered } : {}) },
   };
 }
