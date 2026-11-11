@@ -132,6 +132,12 @@ for (const level of levels) {
     }
     if (e === ".wasm") {
       check(tag, "wasm-magic", out.readUInt32LE(0) === 0x6d736100);
+      try {
+        new WebAssembly.Module(out);
+        check(tag, "wasm-compiles", true);
+      } catch (err) {
+        check(tag, "wasm-compiles", false, String(err).split("\n")[0].slice(0, 80));
+      }
       const s = out.toString("latin1");
       if (s.includes("license_seal")) {
         check(tag, "exports", true);                       // real names survived

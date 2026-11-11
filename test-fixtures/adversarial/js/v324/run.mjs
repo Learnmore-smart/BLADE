@@ -161,6 +161,29 @@ function record(caseId, ok, detail) {
   );
 }
 
+// ---- 8. sidecar-entangled JS (API-only path, strip=>fail checks) ------------
+// protectTarget with sidecarEntanglePaths — emits runtime createHash/sha256
+// coverage checks that refuse to run without the sidecar file. Cleaned code
+// must drop the entanglement preamble AND execute standalone.
+{
+  const src = read("sidecar-entangle-324.src.js");
+  const r = dehardenJs(src, { filename: "sidecar-entangle-324.src.js" });
+  writeFileSync(join(OUT, "sidecar-entangle.cleaned.js"), r.code);
+  const noEntangle = !/sidecar-key|createHash|coverageMatrix|SIDECAR_ENTANGLE/.test(r.code);
+  const mod = { exports: {} };
+  let ok = false;
+  try {
+    new Function("module", "exports", "require", r.code)(mod, mod.exports, () => ({}));
+    const t = mod.exports.deriveSessionTicket("ENT-ALPHA-9", "pro");
+    ok = mod.exports.validateEnterpriseLicense("ENT-ALPHA-9", "pro", t).tier === "enterprise-unlimited";
+  } catch { /* ok stays false */ }
+  record(
+    "v324 sidecar-entangle",
+    noEntangle && ok && r.report.danglingRefs.length === 0,
+    `entangle=${!noEntangle} exec=${ok} dangling=${r.report.danglingRefs.length}`,
+  );
+}
+
 // ---- summary ----------------------------------------------------------------
 const fails = results.filter((r) => r.verdict !== "PASS");
 console.log(`\n${results.length - fails.length} passed, ${fails.length} failed`);

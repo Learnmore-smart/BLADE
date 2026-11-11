@@ -109,8 +109,8 @@ const codeSec = sect(10, Buffer.concat([
   leb(2),
   // func 0: local.get 0; local.get 1; i32.xor; end
   leb(7), leb(0), Buffer.from([0x20, 0x00, 0x20, 0x01, 0x73, 0x0b]),
-  // func 1: local.get 0; i32.const 42; i32.add; end
-  leb(8), leb(0), Buffer.from([0x20, 0x00, 0x41, 0x2a, 0x6a, 0x0b]),
+  // func 1: local.get 0; i32.const 42; i32.add; end  (7 bytes: locals + 6)
+  leb(7), leb(0), Buffer.from([0x20, 0x00, 0x41, 0x2a, 0x6a, 0x0b]),
 ]));
 const wasm = Buffer.concat([Buffer.from([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]), typeSec, funcSec, memSec, exportSec, codeSec]);
 writeFileSync(join(plain, "seal.wasm"), wasm);
