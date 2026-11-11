@@ -16,5 +16,13 @@ export {
 } from "./trailer.mjs";
 export {
   emitRuntimeCounterShield, reconstructSourceMap, scoreStructuralAnomaly,
+  recoverFuseDefaults,
 } from "./recovery/canonical.mjs";
 export { recoverJsNames, recoverWasmExports } from "./recovery/name-recovery.mjs";
+export {
+  scoreSqliteObjects, beamLoneDecoyScore, neutralizePyLiteralMarkers,
+  detectOpaqueSeedVariants, pycSurgicalSpans,
+} from "./recovery/precision.mjs";
+export {
+  salvageZipMember, triagePcapTail, repairDex, preserveApkMeta, detectEvmPad,
+} from "./recovery/salvage.mjs";
