@@ -3,8 +3,8 @@
 <img src="docs/assets/logo.svg" alt="BLADE" width="88" />
 
 # BLADE: Bypass LLM Agent Defense Engine
-
-### **Cut → Recover → Restore. Make Reverse Engineering Cheap Again.**
+# Make Reverse Engineering Cheap Again.
+### **Cut → Recover → Restore.**
 
 **The open-source Counter-BLA de-hardening pipeline that strips `bla-agents` defenses from protected artifacts before analysis — so `morluto/rea`, decompilers, and LLM recon pipelines see real logic instead of decoys.**
 
