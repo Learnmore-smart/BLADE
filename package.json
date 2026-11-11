@@ -52,6 +52,20 @@
   ],
   "author": "BLADE contributors",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Learnmore-smart/BLADE.git"
+  },
+  "bugs": "https://github.com/Learnmore-smart/BLADE/issues",
+  "homepage": "https://github.com/Learnmore-smart/BLADE#readme",
+  "files": [
+    "src/",
+    "docs/assets/",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "REPORT.md"
+  ],
   "type": "commonjs",
   "engines": {
     "node": "^22.23.4 || >=24.0.0"
