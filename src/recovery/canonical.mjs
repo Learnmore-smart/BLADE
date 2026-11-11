@@ -1000,6 +1000,81 @@ function jpegDeclaredEnd(buf) {
   return Math.max(0, buf.length - 4096) + at + 2;
 }
 
+function beamDeclaredEnd(buf) {
+  // FOR1(4) + totalsize(4,BE = file size - 8) + "BEAM" + chunks
+  if (buf.length < 12 || buf.subarray(0, 4).toString("latin1") !== "FOR1" ||
+      buf.subarray(8, 12).toString("latin1") !== "BEAM") return -1;
+  const end = 8 + buf.readUInt32BE(4);
+  return end <= buf.length ? end : -1;
+}
+
+function uf2DeclaredEnd(buf) {
+  // fixed 512-byte blocks; declared end = last complete block
+  if (buf.length < 512 || buf.readUInt32LE(0) !== 0x0a324655 || buf.readUInt32LE(4) !== 0x9e5d5157) return -1;
+  const end = buf.length - (buf.length % 512);
+  return end > 0 ? end : -1;
+}
+
+function asarDeclaredEnd(buf) {
+  if (buf.length < 16 || (buf.readUInt32LE(0) !== 4 && buf.readUInt32LE(0) !== 8)) return -1;
+  const headerSize = buf.readUInt32LE(4);
+  const jsonLen = buf.readUInt32LE(12);
+  const dataOffset = 8 + headerSize;
+  if (dataOffset > buf.length || 16 + jsonLen > buf.length) return -1;
+  let root;
+  try { root = JSON.parse(buf.subarray(16, 16 + jsonLen).toString("utf8")); } catch { return -1; }
+  let end = dataOffset;
+  (function walk(node) {
+    for (const e of Object.values(node?.files ?? {})) {
+      if (e.files) walk(e);
+      else if (e.offset !== undefined && e.size !== undefined) {
+        end = Math.max(end, dataOffset + Number(e.offset) + e.size);
+      }
+    }
+  })(root);
+  return end <= buf.length ? end : -1;
+}
+
+function jvmDeclaredEnd(buf) {
+  // class file end = end of last attribute; walk CP then attribute tables.
+  if (buf.length < 10 || buf.readUInt32BE(0) !== 0xcafebabe) return -1;
+  let at = 8;
+  const cpCount = buf.readUInt16BE(at); at += 2;
+  for (let i = 1; i < cpCount; i++) {
+    if (at >= buf.length) return -1;
+    const tag = buf[at++];
+    const sz = { 7: 2, 9: 4, 10: 4, 11: 4, 12: 4, 8: 2, 3: 4, 4: 4, 15: 3, 16: 4, 17: 4, 18: 4, 19: 2, 20: 2 }[tag];
+    if (tag === 1) { const l = buf.readUInt16BE(at); at += 2 + l; }
+    else if (tag === 5 || tag === 6) { at += 8; i++; } // long/double take 2 slots
+    else if (sz === undefined) return -1;
+    else at += sz;
+  }
+  if (at + 8 > buf.length) return -1;
+  at += 6; // access, this, super
+  const nIf = buf.readUInt16BE(at); at += 2 + nIf * 2; // interfaces
+  const members = () => {
+    const n = buf.readUInt16BE(at); at += 2;
+    for (let i = 0; i < n; i++) {
+      if (at + 8 > buf.length) return false;
+      const na = buf.readUInt16BE(at + 6); at += 8;
+      for (let a = 0; a < na; a++) {
+        if (at + 6 > buf.length) return false;
+        const alen = buf.readUInt32BE(at + 2);
+        at += 6 + alen;
+      }
+    }
+    return true;
+  };
+  if (!members() || !members()) return -1;
+  const nAttr = buf.readUInt16BE(at); at += 2;
+  for (let a = 0; a < nAttr; a++) {
+    if (at + 6 > buf.length) return -1;
+    const alen = buf.readUInt32BE(at + 2);
+    at += 6 + alen;
+  }
+  return at <= buf.length ? at : -1;
+}
+
 function pcapDeclaredEnd(buf) {
   if (buf.length < 24) return -1;
   const le = buf.readUInt32LE(0) === 0xa1b2c3d4 || buf.readUInt32LE(0) === 0xa1b23c4d;
@@ -1047,6 +1122,10 @@ const DECLARED_END = {
   jpeg: jpegDeclaredEnd, jpg: jpegDeclaredEnd,
   pcap: pcapDeclaredEnd, cap: pcapDeclaredEnd,
   pcapng: pcapngDeclaredEnd,
+  beam: beamDeclaredEnd,
+  uf2: uf2DeclaredEnd,
+  asar: asarDeclaredEnd,
+  class: jvmDeclaredEnd, jvm: jvmDeclaredEnd,
 };
 
 function detectDeclaredEnd(buf, hint) {
@@ -1066,6 +1145,10 @@ function detectDeclaredEnd(buf, hint) {
         ["jpeg", jpegDeclaredEnd],
         ["pcap", pcapDeclaredEnd],
         ["pcapng", pcapngDeclaredEnd],
+        ["beam", beamDeclaredEnd],
+        ["uf2", uf2DeclaredEnd],
+        ["asar", asarDeclaredEnd],
+        ["jvm", jvmDeclaredEnd],
       ];
   for (const [fmt, fn] of order) {
     try {
