@@ -153,6 +153,7 @@ function main() {
   const oIdx = args.indexOf("-o");
   const rIdx = args.indexOf("--report");
   const quiet = args.includes("--quiet");
+  const verbose = args.includes("--verbose");
   if (!input) {
     console.error(USAGE);
     process.exit(2);
@@ -307,7 +308,7 @@ function main() {
   }
   if (!quiet) {
     console.log(`[BLADE] ${kind} ${input} -> ${output}`);
-    console.log(json.length > 1200 ? json.slice(0, 1200) + "\n ... (truncated; see --report)" : json);
+    console.log(!verbose && json.length > 1200 ? json.slice(0, 1200) + "\n ... (truncated; see --report)" : json);
   }
 }
 main();
