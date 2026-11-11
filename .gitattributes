@@ -17,6 +17,8 @@
 *.ptx        text eol=lf
 
 # Test fixtures are byte-exact test data — never normalize, never diff-mangle.
+# The entire fixture tree is exempt (CRLF preservation is itself under test).
+test-fixtures/** -text
 *.exe        binary
 *.dll        binary
 *.so         binary
