@@ -4,6 +4,24 @@ import {
   jvmClassLooksValid, looksLikeZip, bunfsGraphEnd,
 } from "./trailer.mjs";
 
+/**
+ * Route an input buffer to a scrubber kind.
+ *
+ * Detection order matters: magic bytes first (extension lies), then
+ * extension fallbacks for binary formats whose magic may be corrupted,
+ * then text formats by extension. Two deliberate disambiguations:
+ *  - CAFEBABE: JVM class vs fat Mach-O — resolved by arch cputype,
+ *    which BLA shield marker is embedded, then full JVMS §4.1 shape.
+ *  - PE/MZ: managed (.NET) vs native — resolved by which BLA trailer
+ *    fired (BLA itself only sniffs the first 4 KiB for BSJB).
+ *
+ * @param {Buffer} buf raw input bytes
+ * @param {string} ext lowercase filename extension ("" for stdin)
+ * @returns {string} one of: js, asar, wasm, sqlite, safetensors, gguf,
+ *   native, dex, il2cpp, dotnet, evm, ptx, jvm, plist, pcap, uf2, beam,
+ *   pyc, zip, py, html, sourcemap, header, bunfs-snapshot, sidecar-note,
+ *   or "unknown"
+ */
 export function detect(buf, ext) {
   if (buf.length >= 8 && buf.readUInt32LE(0) === 0x6d736100) return "wasm";
   if (buf.length >= 16 && buf.toString("ascii", 0, 15) === "SQLite format 3") return "sqlite";
