@@ -32,7 +32,6 @@ if (!existsSync(BLA)) {
   console.error(`vendor/bla not found — run: npm pack bla-agents@3.2.4 && tar xzf into vendor/bla`);
   process.exit(2);
 }
-rmSync(WORK, { recursive: true, force: true });
 execFileSync(process.execPath, [join(root, "scripts", "make-fixtures.mjs")], { stdio: "pipe" });
 const plain = join(root, "test-fixtures", "plain");
 
@@ -53,6 +52,10 @@ const CONTENT_IDS = {
   ".gguf": ["general.architecture", "llama.context_length"],
 };
 const EXEC_CHECK = { "license-core.js": true };  // electron-bridge requires the electron runtime
+// --audit: score each cleaned artifact with BLA's OWN auditor — recovery is
+// proven when exposure returns to the plaintext baseline. Audit only supports
+// a subset of formats (JS/TS); others are skipped silently.
+const AUDIT_PASS = process.argv.includes("--audit");
 
 let pass = 0, fail = 0, skip = 0;
 const rows = [];
@@ -67,6 +70,8 @@ for (const level of levels) {
   const blaLevel = level === "flagged" ? "maximum" : level;
   const hardDir = join(WORK, level, "hardened");
   const cleanDir = join(WORK, level, "cleaned");
+  rmSync(hardDir, { recursive: true, force: true });
+  rmSync(cleanDir, { recursive: true, force: true });
   mkdirSync(hardDir, { recursive: true });
   mkdirSync(cleanDir, { recursive: true });
   for (const f of readdirSync(plain).sort()) {
@@ -168,6 +173,31 @@ for (const level of levels) {
       check(tag, "map-json", map && map.version === 3 && "mappings" in map,
         "not a reconstructed v3 sourcemap");
       check(tag, "marker-free", !MARKER.test(out.toString("utf8")));
+    }
+    if (AUDIT_PASS && EXEC_CHECK[f]) {
+      // BLA's own auditor scores cleaned output — the recovery verdict the
+      // other side can't argue with. Copy to a non-underscore path first:
+      // audit refuses files under dot/underscore dirs.
+      const auditDir = join(root, "audit-tmp"); mkdirSync(auditDir, { recursive: true });
+      const af = join(auditDir, f);
+      try {
+        writeFileSync(af, out);
+        const a = execFileSync(process.execPath, [BLA, "audit", af], { stdio: "pipe", timeout: 60000 });
+        // first N/100 in audit stdout IS the exposure score (verified:
+        // "REA Exposure Score: <esc>NN/100"); ANSI escapes make fancier
+        // patterns backtrack into the escape digits themselves.
+        const score = Number(String(a).match(/(\d+)\/100/)?.[1]);
+        if (process.env.LIVE_DEBUG && score < 50) {
+          rows.push(`DEBUG ${tag} status: ${String(a).match(/Protection Status:[^\n]*/)?.[0]?.replace(/\x1b\[[0-9;]*m/g, "")} | file ${out.length}B head=${JSON.stringify(out.subarray(0, 40).toString())}`);
+        }
+        const o = execFileSync(process.execPath, [BLA, "audit", input], { stdio: "pipe", timeout: 60000 });
+        const oScore = Number(String(o).match(/(\d+)\/100/)?.[1]);
+        check(tag, `audit ${score}>=${oScore - 5}`,
+          Number.isFinite(score) && Number.isFinite(oScore) && score >= oScore - 5,
+          `cleaned=${score} plain=${oScore}`);
+      } catch (err) {
+        skip++; rows.push(`SKIP  ${tag}  audit: ${String(err).split("\n")[0].slice(0, 80)}`);
+      }
     }
     if (EXEC_CHECK[f]) {
       // the strongest check: cleaned business logic still EXECUTES identically
