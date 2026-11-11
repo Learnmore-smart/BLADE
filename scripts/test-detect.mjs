@@ -66,6 +66,13 @@ check(".asar ext fallback", detect(ascii("garbage"), ".asar"), "asar");
 check(".wasm ext fallback", detect(ascii("garbage"), ".wasm"), "wasm");
 check(".class ext fallback", detect(ascii("garbage"), ".class"), "jvm");
 check(".db ext fallback", detect(ascii("garbage"), ".db"), "sqlite");
+check(".pyc ext fallback", detect(ascii("garbage"), ".pyc"), "pyc");
+check(".bplist ext fallback", detect(ascii("garbage"), ".bplist"), "plist");
+check(".apk ext fallback", detect(ascii("garbage"), ".apk"), "zip");
+check(".aab ext fallback", detect(ascii("garbage"), ".aab"), "zip");
+check(".so ext fallback", detect(ascii("garbage"), ".so"), "native");
+check(".dylib ext fallback", detect(ascii("garbage"), ".dylib"), "native");
+check(".bin stays unknown", detect(ascii("garbage"), ".bin"), "unknown");
 
 // ---- negatives / passthrough
 check("empty -> unknown", detect(Buffer.alloc(0), ""), "unknown");
