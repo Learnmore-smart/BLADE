@@ -9,7 +9,27 @@
   "scripts": {
     "test": "node scripts/verify.mjs",
     "fixtures": "node scripts/make-fixtures.mjs",
-    "blade": "node src/cli.mjs"
+    "blade": "node src/cli.mjs",
+    "test:asar": "node test-fixtures/adversarial/asar/run.mjs",
+    "test:beam": "node test-fixtures/adversarial/beam/run.mjs",
+    "test:bunfs": "node test-fixtures/adversarial/bunfs/run.mjs",
+    "test:dex": "node test-fixtures/adversarial/dex/run-adversarial.mjs",
+    "test:dotnet": "node test-fixtures/adversarial/dotnet/run-adversarial.mjs",
+    "test:evm": "node test-fixtures/adversarial/evm/run.mjs",
+    "test:html": "node test-fixtures/adversarial/html/run-all.mjs",
+    "test:js": "node test-fixtures/adversarial/js/run-adversarial.mjs",
+    "test:js-324": "node test-fixtures/adversarial/js/v324/run.mjs",
+    "test:jvm": "node test-fixtures/adversarial/jvm/adversarial-jvm.mjs",
+    "test:native": "node test-fixtures/adversarial/native/check.mjs",
+    "test:native-fuses": "node test-fixtures/adversarial/native/check-fuses.mjs",
+    "test:native-enclave": "node test-fixtures/adversarial/native/check-enclave.mjs",
+    "test:pcap": "node test-fixtures/adversarial/pcap/run-tests.mjs",
+    "test:plist": "node test-fixtures/adversarial/plist/run-tests.mjs",
+    "test:py": "node test-fixtures/adversarial/py/run.mjs",
+    "test:sqlite": "node test-fixtures/adversarial/sqlite/adversarial-sqlite.mjs",
+    "test:uf2": "node test-fixtures/adversarial/uf2/run-tests.mjs",
+    "test:wasm": "node test-fixtures/adversarial/wasm/run-adversarial.mjs",
+    "test:zip": "node test-fixtures/adversarial/zip/run-adversarial.mjs"
   },
   "keywords": [
     "reverse-engineering",
