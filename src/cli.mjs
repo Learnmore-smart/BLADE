@@ -22,6 +22,9 @@ import {
 import {
   emitRuntimeCounterShield, reconstructSourceMap, scoreStructuralAnomaly,
 } from "./recovery/canonical.mjs";
+import { createRequire } from "node:module";
+
+const VERSION = createRequire(import.meta.url)("../package.json").version;
 
 function detect(buf, ext) {
   if (buf.length >= 8 && buf.readUInt32LE(0) === 0x6d736100) return "wasm";
@@ -145,6 +148,7 @@ All processing is local; nothing is uploaded.`;
 function main() {
   const args = process.argv.slice(2);
   if (args.includes("--help") || args.includes("-h")) { console.log(USAGE); process.exit(0); }
+  if (args.includes("--version")) { console.log(VERSION); process.exit(0); }
   const input = args.find((a) => !a.startsWith("-"));
   const oIdx = args.indexOf("-o");
   const rIdx = args.indexOf("--report");
