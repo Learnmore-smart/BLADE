@@ -155,7 +155,7 @@ function main() {
     if (dryRun) {
       const tmp = join(tmpdir(), `blade-dry-${process.pid}-${Date.now()}.sqlite`);
       const r = scrubSqlite(input, tmp); report = r.report;
-      try { rmSync(tmp); } catch {}
+      for (const s of ["", "-wal", "-shm", "-journal"]) { try { rmSync(tmp + s); } catch {} }
       report.note = (report.note ? report.note + "; " : "") + "dry-run — no artifact written";
     } else {
       const r = scrubSqlite(input, output); report = r.report;
