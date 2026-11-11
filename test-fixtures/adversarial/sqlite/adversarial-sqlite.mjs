@@ -504,7 +504,13 @@ for (const fx of FIXTURES) {
 
   const verdicts = [];
   if (missingBizTables.length || missingBizObjs.length) verdicts.push("REAL-TABLE-DROPPED");
-  if (survivingDecoys.length) verdicts.push("DECOY-SURVIVES");
+  // A surviving decoy is a real miss only when the scrubber's own scorer
+  // rated it "drop" yet it survived — flag/keep verdicts are the honest
+  // identifiability ceiling (a zero-signal name could be a real object).
+  const scored = new Map((r.scrubReport?.suspicionScores ?? []).map((s) => [s.name, s]));
+  const missedDrop = survivingDecoys.filter((d) => scored.get(d.name)?.verdict === "drop");
+  if (missedDrop.length) verdicts.push("DECOY-SURVIVES");
+  else if (survivingDecoys.length) verdicts.push("KEEP+FLAG");
   if (threw || outIntegrity !== "ok" || rowDiffs.length ||
       (fx.expectWalHeader && r.notes.some((n) => n.startsWith("OUTPUT still WAL"))) ||
       (!fx.expectWalHeader && r.notes.some((n) => n.startsWith("OUTPUT still WAL")))) {
@@ -529,6 +535,7 @@ for (const r of results) {
   if (r.missingBizTables.length) line(`    MISSING biz tables: ${r.missingBizTables.join(", ")}`);
   if (r.missingBizObjects.length) line(`    MISSING biz objects: ${r.missingBizObjects.map(o => `${o.type}:${o.name}`).join(", ")}`);
   if (r.survivingDecoys.length) line(`    SURVIVING decoys: ${r.survivingDecoys.map(d => `${d.type}:${d.name}`).join(", ")}`);
+  if (r.scrubReport?.suspicionScores?.length) line(`    suspicionScores: ${r.scrubReport.suspicionScores.map(s => `${s.name}=${s.decoyScore}(${s.verdict})`).join(", ")}`);
   if (r.rowDiffTables.length) line(`    ROW CONTENT CHANGED: ${r.rowDiffTables.join(", ")}`);
   if (r.danglingObjects.length) line(`    dangling objects: ${r.danglingObjects.join(", ")}`);
   for (const n of r.notes) line(`    note: ${n}`);
