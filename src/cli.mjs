@@ -108,13 +108,23 @@ function main() {
   }
   const output = oIdx !== -1 ? args[oIdx + 1] : input.replace(/(\.[^.]*)?$/, ".cleaned$1");
 
+  // kind → { scrub } — the buf-based formats share one dispatch shape:
+  // run the scrubber, keep its report, write `buffer` (binary) or `code` (text).
+  const BUFFER_KINDS = {
+    wasm: scrubWasm, safetensors: scrubSafetensors, gguf: scrubGguf,
+    native: scrubNative, dex: scrubDex, il2cpp: scrubIl2cpp, dotnet: scrubDotnet,
+    evm: scrubEvm, jvm: scrubJvm, pcap: scrubPcap, uf2: scrubUf2,
+    beam: scrubBeam, pyc: scrubPyc, zip: scrubZip,
+  };
+  const CODE_KINDS = { ptx: scrubPtx, py: scrubPySource, html: scrubHtml };
+
   let report;
   if (kind === "js") {
     const src = buf.toString("utf8");
     const r = dehardenJs(src, { filename: basename(input) });
     report = { format: "js", ...r.report };
-    if (r.report.hardened) writeOut(output, r.code);
-    else { writeOut(output, r.code); report.note = "no BLA markers found — passthrough"; }
+    writeOut(output, r.code);
+    if (!r.report.hardened) report.note = "no BLA markers found — passthrough";
   } else if (kind === "asar") {
     // `unpacked` entries live in the sibling <input>.unpacked/ dir — feed them
     // in for integrity checks and re-emit whatever survives to
@@ -135,46 +145,16 @@ function main() {
         writeOut(fp, u.content);
       }
     }
-  } else if (kind === "wasm") {
-    const r = scrubWasm(buf); report = r.report; writeOut(output, r.buffer);
   } else if (kind === "sqlite") {
     const r = scrubSqlite(input, output); report = r.report;
-  } else if (kind === "safetensors") {
-    const r = scrubSafetensors(buf); report = r.report; writeOut(output, r.buffer);
-  } else if (kind === "gguf") {
-    const r = scrubGguf(buf); report = r.report; writeOut(output, r.buffer);
-  } else if (kind === "native") {
-    const r = scrubNative(buf); report = r.report; writeOut(output, r.buffer);
-  } else if (kind === "dex") {
-    const r = scrubDex(buf); report = r.report; writeOut(output, r.buffer);
-  } else if (kind === "il2cpp") {
-    const r = scrubIl2cpp(buf); report = r.report; writeOut(output, r.buffer);
-  } else if (kind === "dotnet") {
-    const r = scrubDotnet(buf); report = r.report; writeOut(output, r.buffer);
-  } else if (kind === "evm") {
-    const r = scrubEvm(buf); report = r.report; writeOut(output, r.buffer);
-  } else if (kind === "ptx") {
-    const r = scrubPtx(buf.toString("utf8")); report = r.report; writeOut(output, r.code);
-  } else if (kind === "jvm") {
-    const r = scrubJvm(buf); report = r.report; writeOut(output, r.buffer);
   } else if (kind === "plist") {
     const isBin = buf.length >= 6 && buf.subarray(0, 6).toString("latin1") === "bplist";
     if (isBin) { const r = scrubBplist(buf); report = r.report; writeOut(output, r.buffer); }
     else { const r = scrubPlistXml(buf.toString("utf8")); report = r.report; writeOut(output, r.code); }
-  } else if (kind === "pcap") {
-    const r = scrubPcap(buf); report = r.report; writeOut(output, r.buffer);
-  } else if (kind === "uf2") {
-    const r = scrubUf2(buf); report = r.report; writeOut(output, r.buffer);
-  } else if (kind === "beam") {
-    const r = scrubBeam(buf); report = r.report; writeOut(output, r.buffer);
-  } else if (kind === "pyc") {
-    const r = scrubPyc(buf); report = r.report; writeOut(output, r.buffer);
-  } else if (kind === "zip") {
-    const r = scrubZip(buf); report = r.report; writeOut(output, r.buffer);
-  } else if (kind === "py") {
-    const r = scrubPySource(buf.toString("utf8")); report = r.report; writeOut(output, r.code);
-  } else if (kind === "html") {
-    const r = scrubHtml(buf.toString("utf8")); report = r.report; writeOut(output, r.code);
+  } else if (BUFFER_KINDS[kind]) {
+    const r = BUFFER_KINDS[kind](buf); report = r.report; writeOut(output, r.buffer);
+  } else if (CODE_KINDS[kind]) {
+    const r = CODE_KINDS[kind](buf.toString("utf8")); report = r.report; writeOut(output, r.code);
   } else if (kind === "sourcemap") {
     const r = inspectSourcemap(buf.toString("utf8")); report = r;
     // Original mappings are destroyed — but the passthrough map emitted is
