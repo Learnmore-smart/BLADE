@@ -654,13 +654,43 @@ the output (journal reset to `DELETE` — self-contained artifact);
 verdict `KEEP+FLAG` marks the scorer-vs-survivor ceiling honestly.
 
 Robustness contract: every scrubber is now keep-and-flag on malformed
-or wrong-magic input (`258 passed, 0 failed, 0 format-rejections`) —
+or wrong-magic input (`270 passed, 0 failed, 0 format-rejections`) —
 truncated ASAR/WASM/GGUF headers return bytes untouched with a note
 instead of throwing.
 
+### Round 9 — PCAP coverage + CLI/library ergonomics
+
+PCAP:
+
+- **pcapng block walk**: EPB/SPB/PB blocks whose payload hits the decoy
+  signature are dropped; markers inside structural blocks (SHB/IDB/
+  options) are flagged but kept — the file format requires them.
+  Reported as `format:"pcapng"`, `decoyBlocksDropped`, `suspiciousBlocks`.
+- **BE nanosecond pcaps** (`0xa1b23c4d` big-endian) were rejected by both
+  `detect()` and the scrubber's endianness table — they now route and
+  scrub correctly (decoy packets dropped, real packets kept).
+
+CLI:
+
+- `--report -` streams the full untruncated JSON report to stdout —
+  composes with stdin input for pure-pipe usage
+  (`cat artifact | blade - -o out --report -`).
+- `--format <kind>` overrides detection (24 kinds accepted).
+- `--dry-run` no longer writes a sqlite artifact — `scrubSqlite` is
+  path-based, so dry-run scrubs to a temp file and reports normally.
+- Reports now carry `inputSha256` + `inputSize` provenance.
+
+Library/dx:
+
+- `package.json` gains `repository`/`bugs`/`homepage` and a `files`
+  whitelist (npm tarball is src+docs only, 166 kB).
+- JSDoc across all 50 public exports; the keep+flag/passthrough contract
+  is documented at `src/index.mjs`.
+- `detect()` BE-nsec routing covered by unit tests (40/40).
+
 ## Verification
 
-`node scripts/verify.mjs` — **29 checks, all passing**:
+`node scripts/verify.mjs` — **37 checks, all passing**:
 - JS parse + behavioral equivalence (exports, IPC handlers, channel strings,
   store effects) against the plain originals.
 - Canonical API names present in cleaned output.
@@ -676,3 +706,9 @@ instead of throwing.
 - HTML non-script markup identical, both scripts dehardened and
   marker-free.
 - Source map passthrough correctly flagged `unrecoverable`.
+- Scrubber edge paths: BE-nsec pcap decoy drop, pcapng EPB drop with
+  SHB preservation, HTML `on*=`/`javascript:` handler flagging.
+- Evaluator: corpus-digest single-char tamper is uniquely repairable;
+  untampered input reports no repair.
+- CLI edges: stdin requires `-o`, `--report -` streams full JSON,
+  `--format` overrides detection.
