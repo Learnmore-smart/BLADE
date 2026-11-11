@@ -3,17 +3,33 @@
 // runs scrubPlistXml/scrubBplist, validates cleaned output with python
 // plistlib, and prints a verdict per case.
 import { readFileSync, writeFileSync } from "node:fs";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import path from "node:path";
 
 const DIR = import.meta.dirname;
 const ROOT = path.resolve(DIR, "..", "..", "..");
-const PY = "C:\\Users\\noahz\\miniconda3\\python.exe";
+
+// Locate a python with plistlib — no hardcoded machine paths. Order prefers
+// the explicit override, then the Windows launcher, then PATH pythons (the
+// Windows `python` Store stub exits non-zero, so the probe filters it).
+function findPython() {
+  for (const cand of [process.env.BLADE_PYTHON, "py", "python3", "python"]) {
+    if (!cand) continue;
+    const r = spawnSync(cand, ["-c", "import plistlib"], { stdio: "ignore" });
+    if (!r.error && r.status === 0) return cand;
+  }
+  return null;
+}
+const PY = findPython();
 
 const { scrubPlistXml, scrubBplist } = await import(path.join(ROOT, "src", "trailer.mjs").replace(/\\/g, "/").replace(/^/, "file:///"));
 const { protectAppleXmlPlist, protectApplePlistBuffer } = await import(path.join(ROOT, "vendor", "bla", "dist", "shields", "formats", "apple-plist.js").replace(/\\/g, "/").replace(/^/, "file:///"));
 
 const results = [];
+if (!PY) {
+  console.log("SKIP: no python interpreter with plistlib found — set BLADE_PYTHON");
+  process.exit(0);
+}
 function validate(file) {
   const j = execFileSync(PY, [path.join(DIR, "validate.py"), file], { encoding: "utf8" }).trim();
   return JSON.parse(j);
