@@ -23,6 +23,10 @@ const arg = (name) => {
 };
 const INTENSITIES = (arg("--intensity") ?? "stealth,balanced,maximum,bankrupt").split(",");
 const SEED = "live-matrix";
+// opt-in decoy layers (`bla protect` flags) get one extra pass at maximum
+// intensity — `--with-flags` enables it; CI runs base intensities only.
+const FLAGS_PASS = process.argv.includes("--with-flags");
+const OPT_IN_FLAGS = ["--llm-directives", "--weave-decoys", "--self-seal", "--sidecar-entangle"];
 
 if (!existsSync(BLA)) {
   console.error(`vendor/bla not found — run: npm pack bla-agents@3.2.4 && tar xzf into vendor/bla`);
@@ -57,7 +61,10 @@ const check = (tag, name, ok, detail = "") => {
   else { fail++; rows.push(`FAIL  ${tag}  ${name}  ${detail}`); }
 };
 
-for (const level of INTENSITIES) {
+const levels = [...new Set(FLAGS_PASS ? [...INTENSITIES, "flagged"] : INTENSITIES)];
+for (const level of levels) {
+  const flags = level === "flagged" ? OPT_IN_FLAGS : [];
+  const blaLevel = level === "flagged" ? "maximum" : level;
   const hardDir = join(WORK, level, "hardened");
   const cleanDir = join(WORK, level, "cleaned");
   mkdirSync(hardDir, { recursive: true });
@@ -76,7 +83,7 @@ for (const level of INTENSITIES) {
     let blaOut;
     try {
       blaOut = execFileSync(process.execPath,
-        [BLA, "protect", input, "-o", hardened, "--intensity", level, "--seed", SEED],
+        [BLA, "protect", input, "-o", hardened, "--intensity", blaLevel, "--seed", SEED, ...flags],
         { stdio: "pipe", timeout: 180000 });
     } catch (e) {
       const msg = String(e.stderr ?? e.stdout ?? "").split("\n").filter(Boolean).pop() ?? "";

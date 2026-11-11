@@ -52,7 +52,12 @@ function denseTrailerTail(buf, from) {
   const text = buf.subarray(from, Math.min(buf.length, from + (1 << 20))).toString("latin1");
   let hits = 0, last = -1, m2;
   while ((m2 = sib.exec(text))) { hits++; last = m2.index + m2[0].length; }
-  return last >= 0 && buf.length - (from + last) <= 192 &&
+  const tailAfterLast = buf.length - (from + last);
+  // --llm-directives trailers end in plain policy-refusal prose (~400B with
+  // no vocab). A very dense tail proves itself by hit count; the last-hit
+  // margin only matters when hits are sparse enough to be coincidence.
+  const margin = hits >= 16 ? 768 : 192;
+  return last >= 0 && tailAfterLast <= margin &&
          (hits >= 8 || (text.length <= 512 && hits >= 2));
 }
 // End of a PE file's declared content: last section raw end or the
