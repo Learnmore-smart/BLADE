@@ -567,7 +567,7 @@ const JVM_CP_SIZES = (tag) => ({ 3: 5, 4: 5, 5: 9, 6: 9, 9: 5, 10: 5, 11: 5, 12:
 // Requiring an anchor kills false-positive cuts on legit strings that merely
 // resemble decoy content (e.g. a real "TRANSPORT_ENDPOINT=…" constant).
 const JVM_HARD_ANCHOR = /^(BlaEnclaveDelegation|com\/enclave\/sgx\/TeeAttestationBridge|verifyShamirEd25519QuorumRing:\(Ljava\/nio\/ByteBuffer;\[B\)Z|unsealVsockCid16Frame:\(J\[B\)\[B|\[BLA-JVM-ENCLAVE:)/;
-const JVM_DECOY_UTF8 = /^(BlaEnclaveDelegation|com\/enclave\/(sgx\/TeeAttestationBridge|tarpit\/StateNode_[0-9a-f]{2}_pc_\d+)|verifyShamirEd25519QuorumRing:\(Ljava\/nio\/ByteBuffer;\[B\)Z|unsealVsockCid16Frame:\(J\[B\)\[B|\[BLA-JVM-ENCLAVE:|PROTECTED_CANARY_CREDENTIAL=|TRANSPORT_ENDPOINT=|TRANSPORT_QUERY_CONFLICT=|\[COGNITIVE_ARMOR_INTERLOCK)/i;
+const JVM_DECOY_UTF8 = /^(BlaEnclaveDelegation|com\/enclave\/(sgx\/TeeAttestationBridge|tarpit\/StateNode_[0-9a-f]{2}_pc_\d+)|verifyShamirEd25519QuorumRing:\(Ljava\/nio\/ByteBuffer;\[B\)Z|unsealVsockCid16Frame:\(J\[B\)\[B|\[BLA-JVM-ENCLAVE:|PROTECTED_CANARY_CREDENTIAL=|TRANSPORT_ENDPOINT=|TRANSPORT_QUERY_CONFLICT=|\[COGNITIVE_ARMOR_INTERLOCK|\[[a-z0-9][a-z0-9.-]*\] [A-Z][A-Za-z]+ ?\([A-Za-z0-9_.:-]+\): .+ Remediation: )/i;
 // Walk the constant pool (JVMS §4.4): per-entry tag/offset/size plus a
 // slot-indexed tag map for resolving CONSTANT_Class refs. ok:false when the
 // pool can't be walked to the declared cp_count.
@@ -653,32 +653,85 @@ export function scrubJvm(buf) {
     return { buffer: buf, report: { format: "jvm", hardened: false, note: "invalid class structure — passthrough" } };
   }
   // decoys are appended contiguously at CP end, all CONSTANT_Utf8, and always
-  // led by BLA's fixed head entries. Find the first hard-anchor entry; every
-  // entry from there to CP end is decoy (verify the whole tail is tag 1 and
-  // that subsequent entries match the decoy set).
+  // led by BLA's fixed head entries. A contiguous run of decoy-vocab entries
+  // reaching CP end is tail-cut (byte-exact restore). A run broken by real
+  // entries — or decoys sitting mid-pool — can't be cut (renumbering would
+  // corrupt every CP reference), so those entries are NEUTRALIZED in place:
+  // same-length benign overwrite keeps indices and offsets valid.
+  const utf8Text = (e) => e.tag === 1 ? buf.subarray(e.off + 3, e.off + e.size).toString("utf8") : null;
+  const isHard = (t) => t !== null && JVM_HARD_ANCHOR.test(t);
+  const isSoft = (t) => t !== null && JVM_DECOY_UTF8.test(t);
+  const texts = entries.map(utf8Text);
   let dropFrom = -1;
+  const runs = []; // [start,end) index ranges of broken decoy runs
   for (let i = 0; i < entries.length; i++) {
-    const e = entries[i];
-    if (e.tag !== 1) continue;
-    const txt = buf.subarray(e.off + 3, e.off + e.size).toString("utf8");
-    if (JVM_HARD_ANCHOR.test(txt) && entries.slice(i).every((x) => x.tag === 1)) {
-      dropFrom = i; break;
-    }
+    if (!isHard(texts[i])) continue;
+    // extend the run while entries are tag-1 decoy vocabulary (hard OR the
+    // softer canary/transport records BLA appends inside the same block)
+    let j = i;
+    while (j < entries.length && (isHard(texts[j]) || isSoft(texts[j]))) j++;
+    if (j === entries.length) { dropFrom = i; break; }
+    runs.push([i, j]);
+    i = j - 1;
   }
-  const decoyEntries = dropFrom >= 0 ? entries.length - dropFrom : 0;
-  const decoyStart = decoyEntries > 0 ? entries[dropFrom].off : cpEnd;
+  if (dropFrom < 0 && runs.length > 0) {
+    // decoys present but the run doesn't reach CP end — neutralize in place.
+    const out = Buffer.from(buf);
+    let neutralized = 0;
+    for (const [s, e] of runs) {
+      for (let i = s; i < e; i++) {
+        out.fill(0x20, entries[i].off + 3, entries[i].off + entries[i].size);
+        neutralized++;
+      }
+    }
+    // soft-vocab entries outside every proven run stay, but they're still
+    // suspicious — surface them in the report.
+    const runSet = new Set(runs.flatMap(([s, e]) => Array.from({ length: e - s }, (_, k) => s + k)));
+    const suspicious = entries.map((e, i) => [e, i]).filter(([, i]) => !runSet.has(i) && isSoft(texts[i])).map(([, i]) => `#${i + 1}`);
+    // appended attrPayload JSON after class body can still be cut outright.
+    const classEnd0 = jvmClassEnd(out, cpEnd);
+    let extraCut = 0;
+    const tail0 = out.subarray(classEnd0);
+    if (tail0.length > 0 && tail0.toString("utf8").includes("bla-jvm-enclave-v1")) extraCut = tail0.length;
+    return {
+      buffer: extraCut ? out.subarray(0, classEnd0) : out,
+      report: { format: "jvm", mode: "neutralize", hardened: true, decoyCpEntriesNeutralized: neutralized, ...(suspicious.length ? { suspiciousCpEntries: suspicious } : {}), ...(extraCut ? { trailingJsonDropped: extraCut } : {}) },
+    };
+  }
+  // no decoys: flag ambiguous soft-vocab strings, keep bytes
+  if (dropFrom < 0) {
+    const suspicious = entries.map((e, i) => [e, i]).filter(([, i]) => isSoft(texts[i])).map(([, i]) => `#${i + 1}`);
+    const classEnd0 = jvmClassEnd(buf, cpEnd);
+    const tail0 = buf.subarray(classEnd0);
+    const extraCut = tail0.length > 0 && tail0.toString("utf8").includes("bla-jvm-enclave-v1") ? tail0.length : 0;
+    if (suspicious.length === 0 && extraCut === 0) return { buffer: buf, report: { format: "jvm", hardened: false } };
+    return {
+      buffer: extraCut ? buf.subarray(0, classEnd0) : buf,
+      report: { format: "jvm", hardened: extraCut > 0, ...(suspicious.length ? { suspiciousCpEntries: suspicious } : {}), ...(extraCut ? { trailingJsonDropped: extraCut } : {}) },
+    };
+  }
+  const decoyEntries = entries.length - dropFrom;
+  const decoyStart = entries[dropFrom].off;
   const classEnd = jvmClassEnd(buf, cpEnd);
   // appended attrPayload JSON after class body
   let extraCut = 0;
   const tail = buf.subarray(classEnd);
   if (tail.length > 0 && tail.toString("utf8").includes("bla-jvm-enclave-v1")) extraCut = tail.length;
-  if (decoyEntries === 0 && extraCut === 0) return { buffer: buf, report: { format: "jvm", hardened: false } };
   const rebuilt = Buffer.concat([buf.subarray(0, 10), buf.subarray(10, decoyStart), buf.subarray(cpEnd, classEnd)]);
-  const keptSlots = (dropFrom >= 0 ? entries.slice(0, dropFrom) : entries).reduce((a, e) => a + e.slots, 0);
+  // decoys in an earlier broken run (before dropFrom) can't be cut without
+  // renumbering — neutralize their bytes inside the rebuilt pool instead.
+  let neutralized = 0;
+  for (const [s, e] of runs) {
+    for (let i = s; i < e && i < dropFrom; i++) {
+      rebuilt.fill(0x20, entries[i].off + 3, entries[i].off + entries[i].size);
+      neutralized++;
+    }
+  }
+  const keptSlots = entries.slice(0, dropFrom).reduce((a, e) => a + e.slots, 0);
   rebuilt.writeUInt16BE(keptSlots + 1, 8);
   return {
     buffer: rebuilt,
-    report: { format: "jvm", mode: "structural", hardened: true, decoyCpEntriesDropped: decoyEntries, trailingJsonDropped: extraCut },
+    report: { format: "jvm", mode: "structural", hardened: true, decoyCpEntriesDropped: decoyEntries, trailingJsonDropped: extraCut, ...(neutralized ? { decoyCpEntriesNeutralized: neutralized } : {}) },
   };
 }
 
