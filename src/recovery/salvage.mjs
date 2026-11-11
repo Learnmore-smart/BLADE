@@ -94,6 +94,14 @@ function stripMarkerRuns(buf) {
 // whole containing record envelope when a plausible 16-byte record header
 // (incl_len covering the marker, orig_len >= incl_len) precedes the marker
 // within 64 B. Everything else is kept verbatim.
+/**
+ * Byte-triage an unwalkable pcap tail: drop only marker runs — or their
+ * containing 16-byte record envelope when a plausible header precedes the
+ * marker — and keep everything else verbatim. Replaces wholesale tail
+ * drops so one corrupt record can't hide real bytes.
+ * @param {Buffer} tail
+ * @returns {{ kept: Buffer, dropped: Buffer, reason: string }}
+ */
 export function triagePcapTail(tail) {
   const empty = { kept: tail ?? Buffer.alloc(0), dropped: Buffer.alloc(0), reason: "empty" };
   if (!tail || tail.length === 0) return empty;
@@ -218,6 +226,13 @@ const EVM_ARITY = (() => {
   t[0xfd] = [2, 0]; t[0xff] = [1, 0];
   return t;
 })();
+/**
+ * Detect decoy padding appended after EVM bytecode's declared end:
+ * opcode-walks the declared region, then classifies the tail (unreachable
+ * JUMPDEST runs, marker text, entropy drop) before naming a padStart.
+ * @param {Buffer} buf @param {number} [declaredEnd]
+ * @returns {{ padStart: number|null, confidence: string, evidence: string }}
+ */
 export function detectEvmPad(buf, declaredEnd = buf.length) {
   const none = (confidence, evidence) => ({ padStart: null, confidence, evidence });
   if (!buf || buf.length === 0) return none("low", "empty-buffer");
@@ -545,6 +560,14 @@ function inflatePrefix(raw, outCap = 1 << 28) {
 // excising it restores the original byte sequence exactly); then prefix
 // decode to first error. Decoded/stored output is returned minus any marker
 // byte runs. note: 'full' | 'prefix' | 'marker-stripped' | 'none'.
+/**
+ * Salvage a ZIP member's compressed data: attempt order stored →
+ * inflateRaw → inflate → brotli → marker-splice retries (injected ASCII
+ * breaks the bitstream; excising marker runs restores the original
+ * sequence) → prefix decode to first error.
+ * @param {Buffer} raw @param {number} method  ZIP compression method id
+ * @returns {{ data: Buffer|null, salvagedBytes: number, note: string }}
+ */
 export function salvageZipMember(raw, method) {
   const done = (data, salvagedBytes, note) => ({ data, salvagedBytes, note });
   if (!raw || raw.length === 0) return done(null, 0, "none");
@@ -633,6 +656,13 @@ function dexStructurallyValid(buf) {
   }
   return buf.indexOf(DEX_MARKER) < 0;
 }
+/**
+ * Repair header-level DEX damage left by BLA decoy injection (bad
+ * file_size/map_off/string_ids bounds); validated against a structural
+ * walk before and after so a repair never invents a parseable file from
+ * garbage. Passthrough when magic is absent or the file is already valid.
+ * @returns {{ buf: Buffer, repairs: string[], status: string }}
+ */
 export function repairDex(buf) {
   const pass = () => ({ buf, repairs: [], status: "passthrough" });
   if (!buf || buf.length < 112 || buf.subarray(0, 4).toString("latin1") !== "dex\n") return pass();
@@ -670,6 +700,13 @@ export function repairDex(buf) {
 // extra field shapes: id u16 + size u16 + data. Alignment padding shows up
 // as id 0xa11e, a filler field (0xffff) with all-zero payload, or an extra
 // region that is entirely zero bytes.
+/**
+ * Recover an APK member's original extra-field metadata (alignment
+ * padding 0xa11e, filler 0xffff, all-zero regions) from the pre-scrub
+ * local/central headers so re-emitted entries keep their byte offsets —
+ * required for v2/v3 signature validity.
+ * @returns {Buffer|null} preserved extra-field bytes
+ */
 export function preserveApkMeta(origLocal, origCentral) {
   const LOCAL_SIG = 0x04034b50, CENTRAL_SIG = 0x02014b50;
   const u16 = (b, o) => (b && o + 2 <= b.length ? b.readUInt16LE(o) : null);
