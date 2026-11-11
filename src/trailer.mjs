@@ -19,7 +19,7 @@ const CANARY_RE = /PROTECTED_CANARY_CREDENTIAL=|TRANSPORT_ENDPOINT=|TRANSPORT_QU
 // A marker occurrence is only a trailer start if the bytes after it look like
 // BLA trailer records (dense sibling markers / NUL-separated records). A lone
 // marker inside real content is left alone — avoids false-positive cuts.
-const TRAILER_SIBLING = /\[BLA-|BLA_[A-Z]|PROTECTED_CANARY|TRANSPORT_|enclave|Enclave|\/rustc\/|Lcom\/|Java_|StateNode|tarpit|Tarpit|canary|diagnostic|COGNITIVE_ARMOR|dep-v0|\.gopclntab|dL7pKGdn|pinvoke|shardId/;
+const TRAILER_SIBLING = /\[BLA-|BLA_[A-Z]|PROTECTED_CANARY|TRANSPORT_|enclave|Enclave|\/rustc\/|Lcom\/|Java_|StateNode|tarpit|Tarpit|canary|diagnostic|COGNITIVE_ARMOR|dep-v0|\.gopclntab|dL7pKGdn|pinvoke|shardId|Shim/;
 // BLA trailer record-name vocabulary (CamelCase families + lowercase record
 // families) — used to vet the first token after a marker.
 const TRAILER_WORD = new RegExp(
@@ -1076,7 +1076,13 @@ export function scrubBeam(buf) {
           /^bla_tarpit_atom_/.test(n);
         const DECOY_ATOM = (n) =>
           BLA_ATOM_EXACT(n) ||
-          /CANARY|PROTECTED|TRANSPORT_|COGNITIVE|enclave|tarpit|diagnostic|BLA|ATTEST/i.test(n);
+          // BLA's text-record atoms (TRANSPORT_ENDPOINT=…, PROTECTED_CANARY_…=
+          // …, `_tool.host__Class__CODE_:_msg` diagnostics) always carry `=`,
+          // `:` or `[` — characters an unquoted Erlang atom can never hold —
+          // or the `^_[word.-]__` tool-diagnostic prefix. They join the
+          // keyword vocabulary for the contiguous-tail walk; the trim itself
+          // still requires an exact BLA anchor in the run.
+          /[=:\[\s]|^_[\w.-]+__|CANARY|PROTECTED|TRANSPORT_|COGNITIVE|enclave|tarpit|diagnostic|BLA|ATTEST/i.test(n);
         let tail = names.length;
         while (tail > 0 && DECOY_ATOM(names[tail - 1])) tail--;
         // the broad-vocab walk can overshoot into real atoms — trim only

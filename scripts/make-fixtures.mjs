@@ -1,5 +1,5 @@
 // Build plain (unprotected) test artifacts for the BLADE eval corpus.
-import { mkdirSync, writeFileSync, copyFileSync } from "node:fs";
+import { mkdirSync, rmSync, writeFileSync, copyFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
@@ -117,6 +117,7 @@ writeFileSync(join(plain, "seal.wasm"), wasm);
 
 // ---------- 4. SQLite DB with business data ----------
 {
+  rmSync(join(plain, "licenses.sqlite"), { force: true });
   const db = new DatabaseSync(join(plain, "licenses.sqlite"));
   db.exec(`
     CREATE TABLE license_cache (

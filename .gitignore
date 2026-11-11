@@ -47,3 +47,4 @@ test-fixtures/adversarial/wasm/e2e-bankrupt.wasm
 *.baiduyun.uploading.cfg
 *.baiduyun.downloading.cfg
 *.baiduyun.p.downloading
+_live/
