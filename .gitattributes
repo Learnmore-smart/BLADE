@@ -1,0 +1,51 @@
+# Source files: normalize to LF on commit.
+*.mjs        text eol=lf
+*.js         text eol=lf
+*.ts         text eol=lf
+*.json       text eol=lf
+*.md         text eol=lf
+*.yml        text eol=lf
+*.yaml       text eol=lf
+*.svg        text eol=lf
+*.py         text eol=lf
+*.rs         text eol=lf
+*.go         text eol=lf
+*.c          text eol=lf
+*.h          text eol=lf
+*.cpp        text eol=lf
+*.hpp        text eol=lf
+*.ptx        text eol=lf
+
+# Test fixtures are byte-exact test data — never normalize, never diff-mangle.
+*.exe        binary
+*.dll        binary
+*.so         binary
+*.dylib      binary
+*.bin        binary
+*.wasm       binary
+*.asar       binary
+*.sqlite     binary
+*.sqlite3    binary
+*.db         binary
+*.dex        binary
+*.class      binary
+*.beam       binary
+*.uf2        binary
+*.pcap       binary
+*.pcapng     binary
+*.cap        binary
+*.pyc        binary
+*.bplist     binary
+*.evm        binary
+*.gguf       binary
+*.safetensors binary
+*.plist      binary
+*.entitlements binary
+*.mobileprovision binary
+*.map        binary
+*.zip        binary
+*.apk        binary
+*.jar        binary
+*.o          binary
+*.a          binary
+*.out        binary
