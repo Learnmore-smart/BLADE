@@ -35,7 +35,7 @@ usage: node src/cli.mjs <input> [-o output] [--report out.json] [--quiet] [--ver
 options:
   -o <path>          output path (default: <input>.cleaned<ext>)
   --format <kind>    force a scrubber route instead of detect()
-  --report <path>    write the full JSON report to <path>
+  --report <path>    write the full JSON report to <path> ("-" = stdout)
   --quiet            suppress the report dump on stdout
   --verbose          never truncate the report on stdout
   --dry-run          analyze only — write no artifact or sidecar files
@@ -69,7 +69,8 @@ function main() {
   }
   for (const f of VALUE_FLAGS) {
     const i = args.indexOf(f);
-    if (i !== -1 && (i + 1 >= args.length || args[i + 1].startsWith("-"))) {
+    // `-` is a legal value for --report (stdout) — only other flags reject.
+    if (i !== -1 && (i + 1 >= args.length || (args[i + 1].startsWith("-") && !(f === "--report" && args[i + 1] === "-")))) {
       console.error(`blade: ${f} requires a value\n\n${USAGE}`);
       process.exit(2);
     }
@@ -233,11 +234,15 @@ function main() {
   }
 
   const json = JSON.stringify(report, null, 2);
-  if (rIdx !== -1) {
+  const reportToStdout = rIdx !== -1 && args[rIdx + 1] === "-";
+  if (rIdx !== -1 && !reportToStdout) {
     mkdirSync(dirname(args[rIdx + 1]), { recursive: true });
     writeFileSync(args[rIdx + 1], json);
   }
-  if (!quiet) {
+  if (reportToStdout) {
+    // `--report -` means machine-readable stdout: full JSON, nothing else.
+    process.stdout.write(json + "\n");
+  } else if (!quiet) {
     console.log(`[BLADE] ${kind} ${input} -> ${output}`);
     console.log(!verbose && json.length > 1200 ? json.slice(0, 1200) + "\n ... (truncated; see --report)" : json);
   }
