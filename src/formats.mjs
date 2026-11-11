@@ -41,6 +41,18 @@ function isDecoyAsarPath(p) {
     /^\.bla\/sidecar\.v1\.json$/i.test(p) || /^\.bla-sidecar\.v1\.json$/i.test(p);
 }
 const ASAR_CONTENT_MARKERS = /_interlockSafetyCorpus_|ring0-slot|hardware-tee-bridge|bla-enclave-shield/;
+/**
+ * De-harden an ASAR archive: drop BLA's `enclave/shards/ring0-slot-*` flood
+ * entries, `.bla/` sidecar records and content-marked decoys; repack a
+ * minimal Pickle header and deharden every surviving JS member. Per-member
+ * `integrity` hashes are recomputed so Electron's asar check still passes.
+ * `opts.getExternal(path)` supplies `<input>.unpacked/` siblings for
+ * integrity validation; survivors are returned as `unpackedExternals` for
+ * the caller to re-emit. Unparseable archives pass through untouched.
+ * @param {Buffer} buf
+ * @param {{ getExternal?: (path: string) => Buffer|null }} [opts]
+ * @returns {{ buffer: Buffer, unpackedExternals?: Array<{path:string,content:Buffer}>, report: object }}
+ */
 export function scrubAsar(buf, opts = {}) {
   let parsed;
   try {
@@ -247,6 +259,15 @@ const WASM_HARD_MARK = /bla\.enclave|enclave\.attestation|bla\.canary|bla\.syste
 const WASM_DECOY_CUSTOM = /^(bla\.|enclave\.|enclave_|canary)/i;
 const WASM_STRIP_ALWAYS = /^(name|producers)$/i;
 const WASM_DECOY_EXPORT = /^enclave_export_[0-9a-f]{4}_\d+_e+$|^canary_export|^enclave_unseal_/i;
+/**
+ * De-harden a WASM module: drop `bla.*`/`enclave.*`/`canary*` custom
+ * sections (and the honey `name`/`producers` sections when hardened),
+ * rewrite the export section without `enclave_export_*`/`canary_export_*`
+ * decoys, then run name-recovery so stripped export names regain readable
+ * fallbacks. Non-WASM input passes through with a note.
+ * @param {Buffer} buf
+ * @returns {{ buffer: Buffer, report: object }}
+ */
 export function scrubWasm(buf) {
   if (buf.length < 8 || buf.readUInt32LE(0) !== 0x6d736100) {
     return { buffer: buf, report: { format: "wasm", hardened: false, bytesIn: buf.length, bytesOut: buf.length, note: "bad magic — passthrough" } };
@@ -366,6 +387,17 @@ const schemaMatches = (name, sql) => {
   return hits >= Math.min(3, cols.length);
 };
 const q = (name) => `"${String(name).replaceAll('"', '""')}"`;
+/**
+ * De-harden a SQLite database in place-path terms: copy the input (plus any
+ * `-wal` sidecar, checkpointed so committed rows are never lost), drop
+ * objects the decoy scorer proves are BLA-injected, clean generated-column
+ * bait and dangling references, then VACUUM and switch back to rollback
+ * journal so the output is one self-contained file. Ambiguous objects are
+ * kept and surfaced via `suspicionScores`.
+ * @param {string} inputPath  real fs path (WAL sidecars require it)
+ * @param {string} outputPath
+ * @returns {{ report: object }}
+ */
 export function scrubSqlite(inputPath, outputPath) {
   copyFileSync(inputPath, outputPath);
   // WAL sidecar: committed-but-uncheckpointed rows live in <db>-wal, not the
@@ -553,6 +585,16 @@ export function scrubSqlite(inputPath, outputPath) {
 // BLA nests `enclave.nesting.breaker` 35 deep past REA's 32-frame JSON budget
 // and injects enclave_topology_seal per tensor. Strip injected keys, keep all
 // real metadata + tensor descriptors + weights.
+/**
+ * De-harden a safetensors file: drop BLA's emitted `enclave.*`/`bla.shield.*`
+ * metadata keys and injected `enclave_topology_seal` descriptor fields, flag
+ * deep-JSON breakers nested inside metadata strings or tensor descriptors,
+ * and keep every real tensor (never matched by name — `data_offsets` always
+ * points at real weight bytes). Non-object `__metadata__` is preserved
+ * verbatim and flagged. Tensor bytes are never touched.
+ * @param {Buffer} buf
+ * @returns {{ buffer: Buffer, report: object }}
+ */
 export function scrubSafetensors(buf) {
   if (buf.length < 8) return { buffer: buf, report: { format: "safetensors", hardened: false, note: "truncated header" } };
   const len = Number(buf.readBigUInt64LE(0));
@@ -689,6 +731,17 @@ const deepJsonString = (s) => {
 // flag it, never drop on the namespace alone.
 const GGUF_DECOY_KEY = /^enclave\.(delegation|manifest|canary|diagnostic|nesting|topology)\./i;
 const GGUF_SUSPICIOUS_KEY = /^(enclave\.|bla\.|canary\.)/i;
+/**
+ * De-harden a GGUF model: drop KVs whose keys match BLA's emitted
+ * `enclave.<vocab>.*` namespace or whose values are armor-dominant; filter
+ * armor elements out of string arrays element-by-element (legitimate
+ * elements are re-packed, not dropped); flag ambiguous `enclave.*`/`bla.*`/
+ * `canary.*` keys, unknown value types, under-declared kvCount and
+ * tensor-region shortfalls. Tensor offsets stay relative to the data
+ * region — no re-padding — so weights keep loading.
+ * @param {Buffer} buf
+ * @returns {{ buffer: Buffer, report: object }}
+ */
 export function scrubGguf(buf) {
   if (buf.length < 24 || buf.toString("ascii", 0, 4) !== "GGUF") {
     return { buffer: buf, report: { format: "gguf", hardened: false, note: "bad magic — passthrough" } };
