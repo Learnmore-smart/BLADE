@@ -29,8 +29,41 @@ All notable changes to BLADE are documented here. The format follows
 - `.gitattributes` (LF for source, verbatim `-text` for `test-fixtures/`),
   `.editorconfig`, `CHANGELOG.md`.
 - npm script per adversarial suite (`npm run test:<format>`).
+- `scripts/live-matrix.mjs` — end-to-end harness running the real vendored
+  `bla-agents@3.2.4` CLI: `protect` → BLADE clean → verify at all four
+  intensities plus the opt-in decoy-flag pass, `protect` output re-protected
+  (double-harden) on JS/WASM, `bla audit` exposure scoring on cleaned JS,
+  and WASM compile assertions. 370/370 checks.
+- Multi-layer recovery: every resolved BLA seed is bound into the evaluator
+  environment and folded into opaque predicates (double/triple-harden);
+  corpus discovery runs in source order so later corpora can reference
+  earlier seeds; still-referenced seeds rebind as folded constants.
+- BLA decoy-data removal behind the generic-suffix name gate: tagged
+  `evidenceLedger_*`/`grpcServiceMirage_*`/`systemDiagnosticLog_*`/
+  `canaryCredentialHoneypot_*`, `bpeSink_*` token-amplifier tables, EV-TEE
+  diagnostic records, frida shadow-ring `{epoch, slots}` objects, and
+  tarpit pid-seed declarations.
+- v324 suite: real BLA 3.2.4 showcase fixtures extracted from
+  `vendor/bla/dist/engine/benchmark.js` (dx-ball, license-validator).
 
 ### Fixed
+
+- `scrubNative` whole-section `fill(0)` destroyed real bytes when BLA
+  appended its marker after legitimate `.go.buildinfo`/`.isolate` content
+  (BLA's own ELF fixture) — now zeroes only from the first marker and also
+  covers BLA's planted `\xff Go buildinf:` magic prefix.
+- `scrubGguf` left BLA's trailing NUL filler after stripped decoy KVs — now
+  trimmed when `tensorCount=0` and decoys were dropped.
+- `scrubSafetensors` re-emitted an empty `__metadata__` after dropping all
+  its decoy keys — the block is omitted entirely now.
+- `scrubJvm` returned after cutting the trailer without processing a
+  stuffed constant pool (double-harden both appends and stuffs) — the
+  trimmed buffer now feeds CP decoy-drop/neutralize; degenerate all-decoy
+  classes process before the validity gate.
+- `scrubDex` `ERR_OUT_OF_RANGE` on double-hardened inputs (marker searched
+  in the uncut buffer but filled into the cut one).
+- `scrubWasm` double-harden export floods — decoys aliasing the same
+  `(kind,idx)` as real exports dedup when the module is proven hardened.
 
 - `scrubAsar` crashed with a raw `JSON.parse` error on truncated/corrupt
   archives — now keep+flags like every other scrubber.
