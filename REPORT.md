@@ -617,6 +617,47 @@ Python 21 checks incl. byte-exact sidecar-preamble restore, .NET **12/12**,
 EVM reachable-prefix on merged pads, JVM at documented predicted-label
 ceilings.
 
+### Round 8 — precision + keep-and-flag closeout
+
+Model formats (34-case suite, all PASS/PASS+flag):
+
+- **Armor-value dominance rule**: a marker mention is no longer a death
+  sentence — string values drop only when the marker heads the value or
+  covers ≥50% of it. Prose like `[BLA 2024] Boundary-Layer Analysis`
+  (citation) and `enclave.delegation` protocol mentions now survive in
+  both safetensors `__metadata__` and GGUF KVs.
+- **Metadata vocab narrowed to BLA's real emissions**
+  (`enclave.<delegation|manifest|canary|diagnostic|nesting|topology>.*`
+  + `bla.shield.signature`); ambiguous `enclave_*`/`bla.*`/`canary*`
+  keys are kept+flagged via `suspiciousMeta`/`suspiciousKeys`.
+- **`__metadata__` type confusion**: non-object metadata no longer
+  iterated per-char (was: `{"0":"n","1":"o",…}` corruption).
+- **GGUF bounds**: unknown scalar/array types abort the KV walk to
+  keep+flag instead of desyncing; `kvCount` under-declaration detected
+  by plausible-record sniffing; `tensorRegionShort` flags truncated
+  tensor_info regions; string-array elements are filtered surgically
+  (bait elements rebuilt out, clean elements kept).
+- **Deep-structure flagging**: metadata values or tensor-descriptor
+  fields beyond REA's 32-frame budget are kept + reported.
+
+JVM (24-case suite, all consistent):
+
+- **In-place neutralization**: decoys that can't be tail-cut (mid-pool
+  or followed by real entries) get same-length benign overwrites —
+  CP indices and references stay valid; reported as
+  `decoyCpEntriesNeutralized`.
+- **Tail cut tightened**: requires every entry from anchor to CP end to
+  match decoy vocab (fixes the all-Utf8-tail overcut).
+
+SQLite: live `-wal` sidecars are copied, checkpointed, and folded into
+the output (journal reset to `DELETE` — self-contained artifact);
+verdict `KEEP+FLAG` marks the scorer-vs-survivor ceiling honestly.
+
+Robustness contract: every scrubber is now keep-and-flag on malformed
+or wrong-magic input (`258 passed, 0 failed, 0 format-rejections`) —
+truncated ASAR/WASM/GGUF headers return bytes untouched with a note
+instead of throwing.
+
 ## Verification
 
 `node scripts/verify.mjs` — **29 checks, all passing**:
