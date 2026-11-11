@@ -242,5 +242,60 @@ check("honey map flagged unrecoverable (passthrough)", () => {
   assert.equal(r.honeyMap, true);
 });
 
+// ---- 12. unit-level checks on scrubber edge paths
+console.log("== scrubber edge paths ==");
+const { scrubPcap, scrubHtml } = await import(new URL("file:///" + path.join(ROOT, "src", "trailer.mjs").replace(/\\/g, "/")));
+
+check("BE nanosecond pcap: decoy packet dropped, real kept", () => {
+  const hdr = Buffer.alloc(24);
+  hdr.writeUInt32BE(0xa1b23c4d, 0); // nsec BE magic
+  const rec = (payload, off) => {
+    const r = Buffer.alloc(16 + payload.length);
+    r.writeUInt32BE(1, 0); r.writeUInt32BE(0, 4);
+    r.writeUInt32BE(payload.length, 8); r.writeUInt32BE(payload.length, 12);
+    payload.copy(r, 16);
+    return r;
+  };
+  const real = Buffer.from("GET https://example.com/ HTTP/1.1");
+  const decoy = Buffer.from("GET https://enclave.internal/x [BLA-PCAP-SHIELD] canary");
+  const r = scrubPcap(Buffer.concat([hdr, rec(real), rec(decoy)]));
+  assert.equal(r.report.hardened, true);
+  assert.equal(r.report.decoyPacketsDropped, 1);
+  const out = r.buffer.toString("latin1");
+  assert.ok(out.includes("example.com") && !out.includes("enclave.internal"));
+});
+
+check("pcapng: decoy EPB dropped, structural blocks kept", () => {
+  const blk = (type, body) => {
+    const b = Buffer.alloc(12 + body.length);
+    b.writeUInt32LE(type, 0); b.writeUInt32LE(b.length, 4);
+    body.copy(b, 8); b.writeUInt32LE(b.length, b.length - 4);
+    return b;
+  };
+  const shb = Buffer.alloc(24); shb.writeUInt32LE(0x1a2b3c4d, 0); // BOM
+  const good = Buffer.from("packet example.com data");
+  const bait = Buffer.from("packet enclave.internal [BLA-PCAP-SHIELD] canary");
+  const pad = (b) => Buffer.concat([b, Buffer.alloc((4 - (b.length % 4)) % 4)]);
+  const input = Buffer.concat([
+    blk(0x0a0d0d0a, pad(shb)),            // SHB
+    blk(0x00000001, pad(Buffer.alloc(20))), // IDB
+    blk(0x00000006, pad(good)),           // EPB real
+    blk(0x00000006, pad(bait)),           // EPB decoy
+  ]);
+  const r = scrubPcap(input);
+  assert.equal(r.report.format, "pcapng");
+  assert.equal(r.report.decoyBlocksDropped, 1);
+  const out = r.buffer.toString("latin1");
+  assert.ok(out.includes("example.com") && !out.includes("enclave.internal"));
+  assert.ok(r.buffer.readUInt32LE(0) === 0x0a0d0d0a, "SHB preserved");
+});
+
+check("html: on*=/javascript: decoy names flagged but kept", () => {
+  const html = `<a onclick="obligationFlood_9f2()" href="javascript:tokenSink_12()">x</a>`;
+  const r = scrubHtml(html);
+  assert.equal(r.code, html, "handlers must be preserved");
+  assert.ok(r.report.suspiciousEventHandlers?.length === 2);
+});
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
