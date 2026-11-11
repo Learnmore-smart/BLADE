@@ -29,6 +29,14 @@ const GLOBAL_FNS = {
   parseFloat: (s) => parseFloat(s),
 };
 
+/**
+ * Partial evaluator over Babel AST: folds literals, arithmetic, string
+ * ops and pure builtins; bound at depth 512 so BLA's deliberately deep
+ * expression chains can't blow up analysis. Unknown subexpressions yield
+ * a poisoned UNKNOWN that taints the whole fold.
+ * @param {Map<string,*>} constValues  known constant bindings by name
+ * @returns {(node: object) => { v: * } | UNKNOWN-tagged result}
+ */
 export function makeEvaluator(constValues = new Map()) {
   function ev(node, depth = 0) {
     // Bound evaluation depth: BLA emits deliberately deep expression chains to
@@ -236,6 +244,7 @@ export function makeEvaluator(constValues = new Map()) {
 // Mirrors vendor/bla/src/shields/deception/cognitive-armor-trigger.ts
 // computeContainmentCorpusDigest — the runtime check baked into the seed
 // declaration `const <seed> = <base> | (digest(0) === <expected> ? 1 : 0)`.
+/** Forward digest over corpus entries (see comment above). */
 export function computeContainmentCorpusDigest(entries, seedInput = 0) {
   let acc = ((seedInput | 0) ^ 0x26b5c67b) >>> 0;
   for (const entry of entries) {
@@ -255,6 +264,8 @@ export function computeContainmentCorpusDigest(entries, seedInput = 0) {
 // required states R[i+1], then b = F[i] ^ inv_step(R[i+1]).
 // Returns {entry, field, charIndex, oldChar, newChar, newText} or null when
 // the tamper is not a uniquely-printable single-char substitution.
+/** Invert a single-char corpus tamper against the embedded expected
+ *  digest (see comment above). @returns {object|null} */
 export function repairCorpusDigest(entries, expected) {
   const C = 0x85ebca6b;
   // modular inverse of C mod 2^32 (C is odd): Newton's method

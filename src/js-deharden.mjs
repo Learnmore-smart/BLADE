@@ -116,6 +116,15 @@ function maskJsLiterals(src) {
   return out.join("");
 }
 
+/**
+ * Structural gate: true only when MULTIPLE injected families co-occur in
+ * code positions (containment corpus + seed decl + suffix machinery +
+ * trailing `void [...]` anchor). Marker-shaped text inside literals,
+ * regexes and comments does not count — real scanner tools and docs must
+ * not be dehardened.
+ * @param {string} source
+ * @returns {boolean}
+ */
 export function looksBlaHardened(source) {
   // Structural gate: a real hardened file always carries MULTIPLE injected
   // families — the containment corpus/seed decl plus suffix machinery plus a
@@ -368,6 +377,17 @@ function numTableInit(init) {
   return rows;
 }
 
+/**
+ * De-harden BLA-protected JavaScript: parse to AST, resolve the opaque
+ * seed, drop the injected declaration families (containment corpus,
+ * suffix machinery, encryptStrings stubs, self-seal measure/binds,
+ * ASAR/sidecar preamble IIFEs, honey regions), fold decoy expressions,
+ * then recover readable local names. Re-emits runnable code plus a
+ * report; unhardened input returns verbatim with hardened=false.
+ * @param {string} source
+ * @param {{ filename?: string }} [opts]
+ * @returns {{ code: string, report: object }}
+ */
 export function dehardenJs(source, { filename = "input.js" } = {}) {
   const report = {
     filename,
