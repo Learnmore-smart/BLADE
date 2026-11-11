@@ -10,6 +10,39 @@ All notable changes to BLADE are documented here. The format follows
 - CI workflow running the core verification plus the JS and BLA 3.2.4
   adversarial suites, with `bla-agents@3.2.4` vendored from npm at job time.
 - `CONTRIBUTING.md` documenting the evidence-driven recovery contract.
+- `src/index.mjs` library entry point — the full scrubber/recovery API is
+  importable as `import { detect, scrubNative } from "blade"`.
+- `src/detect.mjs` — format routing extracted from the CLI.
+- `scripts/robustness.mjs` — degenerate/truncated/bit-flipped inputs through
+  all 21 scrubbers; format-rejection throws are legal, anything else is a bug.
+- `scripts/test-detect.mjs` — 37 synthetic-buffer routing unit tests.
+- `scripts/verify-all.mjs` — consolidated suite matrix (`npm run test:all`),
+  with vendor-dependent suites gated on `vendor/bla` presence.
+- CLI flags: `--help`, `--version`, `--quiet`, `--verbose`, `--dry-run`
+  (analyze + report without writing artifacts).
+- `report.suspiciousKeys` on plist scrubbing — BLA-prefixed keys outside the
+  known emission set are surfaced instead of silently kept.
+- `.gitattributes` (LF for source, verbatim `-text` for `test-fixtures/`),
+  `.editorconfig`, `CHANGELOG.md`.
+- npm script per adversarial suite (`npm run test:<format>`).
+
+### Fixed
+
+- `scrubAsar` crashed with a raw `JSON.parse` error on truncated/corrupt
+  archives — now keep+flags like every other scrubber.
+- `scrubWasm`/`scrubGguf` threw on bad magic — now keep+flag passthrough.
+- `scrubPlistXml` required a strict `</key>\n<value>` layout — odd layouts
+  (same-line, blank-line, comment-separated, `<date>`/`<array>` values,
+  lone-CR line endings) left decoys behind. All covered now.
+- `scrubPlistXml` missed `[]` subsets on single-quoted DOCTYPE ids.
+- CLI `-o out.js in.js` misread the output path as the input.
+- Importing the package executed the CLI (`main` pointed at `cli.mjs`);
+  `cli.mjs` now self-gates on direct invocation.
+- plist/py harnesses hardcoded machine-specific python paths — both now
+  probe `BLADE_PYTHON`/`py`/`python3`/`python` and skip gracefully.
+- `.gitattributes` initially normalized `test-fixtures/` `.py` files,
+  destroying the CRLF-preservation property under test; the fixture tree is
+  now stored verbatim.
 
 ### Changed
 
