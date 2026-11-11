@@ -786,8 +786,46 @@ const PCAP_DECOY_MARKERS = ["[BLA-PCAP-SHIELD]", "BLA-PCAP-Shield", "enclave.int
 export function scrubPcap(buf) {
   if (buf.length < 24) return { buffer: buf, report: { format: "pcap", hardened: false } };
   const le = buf.readUInt32LE(0) === 0xa1b2c3d4 || buf.readUInt32LE(0) === 0xa1b23c4d;
-  const be = !le && buf.readUInt32BE(0) === 0xa1b2c3d4;
-  if (!le && !be) return { buffer: buf, report: { format: "pcap", hardened: false, note: "unsupported pcap variant (pcapng not emitted by BLA)" } };
+  const be = !le && (buf.readUInt32BE(0) === 0xa1b2c3d4 || buf.readUInt32BE(0) === 0xa1b23c4d);
+  if (!le && !be) {
+    // pcapng: magic 0x0A0D0D0A. Walk blocks (type|len|body|len) and drop
+    // packet-bearing blocks whose payload hits the decoy signature; flag
+    // markers inside structural blocks but keep them (the file needs them).
+    if (buf.length >= 12 && buf.readUInt32LE(0) === 0x0a0d0d0a) {
+      const PACKET_BLOCKS = new Set([0x00000002, 0x00000003, 0x00000006]); // PB, SPB, EPB
+      const isDecoyTxt = (t) => t.includes("[BLA-PCAP-SHIELD]") || PCAP_DECOY_MARKERS.filter((m) => t.includes(m)).length >= 2;
+      const out = [];
+      let at = 0, droppedBlocks = 0;
+      const flaggedStructural = [];
+      while (at + 12 <= buf.length) {
+        const type = buf.readUInt32LE(at);
+        let len = buf.readUInt32LE(at + 4);
+        if (len < 12 || len % 4 !== 0 || at + len > buf.length) {
+          // try BE (SHB declares endianness via body BOM 0x1A2B3C4D)
+          const alt = buf.readUInt32BE(at + 4);
+          if (alt >= 12 && alt % 4 === 0 && at + alt <= buf.length) len = alt;
+          else break;
+        }
+        const blk = buf.subarray(at, at + len);
+        const txt = blk.toString("latin1");
+        if (PACKET_BLOCKS.has(type) && isDecoyTxt(txt)) droppedBlocks++;
+        else {
+          if (isDecoyTxt(txt)) flaggedStructural.push(`block@0x${at.toString(16)}:type0x${type.toString(16)}`);
+          out.push(blk);
+        }
+        at += len;
+      }
+      if (at < buf.length) out.push(buf.subarray(at)); // unwalkable residue kept
+      if (droppedBlocks === 0 && flaggedStructural.length === 0) {
+        return { buffer: buf, report: { format: "pcapng", hardened: false } };
+      }
+      return {
+        buffer: Buffer.concat(out),
+        report: { format: "pcapng", hardened: droppedBlocks > 0, decoyBlocksDropped: droppedBlocks, ...(flaggedStructural.length ? { suspiciousBlocks: flaggedStructural } : {}) },
+      };
+    }
+    return { buffer: buf, report: { format: "pcap", hardened: false, note: "unsupported pcap variant (pcapng not emitted by BLA)" } };
+  }
   const readU32 = le ? (o) => buf.readUInt32LE(o) : (o) => buf.readUInt32BE(o);
   const isDecoy = (rec) => {
     const txt = rec.toString("latin1");
