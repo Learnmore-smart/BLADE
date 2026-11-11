@@ -59,7 +59,7 @@ export function detect(buf, ext) {
     if (v >= 46 && v <= 90 && jvmClassLooksValid(buf)) return "jvm";
     return "native";
   }
-  if (buf.length >= 4 && (buf.readUInt32LE(0) === 0xa1b2c3d4 || buf.readUInt32LE(0) === 0xa1b23c4d || buf.readUInt32BE(0) === 0xa1b2c3d4 || buf.readUInt32BE(0) === 0x0a0d0d0a)) return "pcap";
+  if (buf.length >= 4 && (buf.readUInt32LE(0) === 0xa1b2c3d4 || buf.readUInt32LE(0) === 0xa1b23c4d || buf.readUInt32BE(0) === 0xa1b2c3d4 || buf.readUInt32BE(0) === 0xa1b23c4d || buf.readUInt32LE(0) === 0x0a0d0d0a)) return "pcap";
   if (buf.length >= 512 && buf.readUInt32LE(0) === 0x0a324655 && buf.readUInt32LE(4) === 0x9e5d5157) return "uf2";
   // pyc magic alone is enough — a renamed .pyc must not evade (marshal tag at
   // 16 disambiguates from plain \r\n text files)
