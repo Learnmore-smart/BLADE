@@ -32,6 +32,8 @@ test-fixtures/adversarial/asar/built/
 *.tmp.mjs
 t-*.mjs
 NUL
+*.tgz
+*.log
 
 # per-intensity regenerated corpora
 test-fixtures/adversarial/intensity/*/hardened/
