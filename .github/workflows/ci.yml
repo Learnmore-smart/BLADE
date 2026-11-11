@@ -1,0 +1,27 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm ci
+      - name: vendor bla-agents 3.2.4 (fixture generator)
+        run: |
+          npm install --prefix vendor --no-save bla-agents@3.2.4
+          cp -r vendor/node_modules/bla-agents vendor/bla
+      - name: core verification
+        run: node scripts/verify.mjs
+      - name: JS adversarial suite
+        run: node test-fixtures/adversarial/js/run-adversarial.mjs
+      - name: BLA 3.2.4 regression suite
+        run: node test-fixtures/adversarial/js/v324/run.mjs
