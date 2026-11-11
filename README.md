@@ -56,10 +56,21 @@ Requires **Node.js ^22.23.4 or ≥24.0.0** (native `node:sqlite`, `structuredClo
 
 ```bash
 git clone <this-repo> && cd blade && npm ci
-node src/cli.mjs <hardened-file> [-o output] [--report report.json]
+node src/cli.mjs <hardened-file> [-o output] [--report report.json] [--quiet|--verbose] [--dry-run]
 ```
 
 BLADE auto-detects ~20 artifact kinds (JS/TS, `.asar`, `.wasm`, `.sqlite`, `.safetensors`, `.gguf`, ELF/Mach-O/PE, `.dex`, `.apk`, `.beam`, `.class`, `.pyc`, `.py`, `.evm`, `.pcap`, `.uf2`, `.plist`/`.bplist`, `.ptx`, `.zip`, `.map`, `.html`, bun sidecars, IL2CPP metadata, .NET) and writes the cleaned artifact plus a JSON report describing every cut, repair, inference and flag.
+
+| Flag | Effect |
+|---|---|
+| `-o <path>` | Output path (default `<input>.cleaned<ext>`) |
+| `--report <path>` | Write the full JSON report |
+| `--quiet` | Suppress the stdout report dump |
+| `--verbose` | Never truncate the stdout report |
+| `--dry-run` | Analyze + report without writing artifacts or sidecars |
+| `--help`, `-h` | Usage and exit codes |
+
+As a library: `import { detect, scrubNative, dehardenJs } from "blade"` (see `src/index.mjs`). Exit codes: `0` success · `1` unrecognized format · `2` usage/IO error.
 
 ### 2. Reproduce the full verification corpus
 
