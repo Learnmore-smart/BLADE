@@ -424,12 +424,24 @@ export function dehardenJs(source, { filename = "input.js" } = {}) {
     (source.includes(".map(Number)") || source.includes("Buffer.from") || source.includes("TextDecoder"));
   if (!report.hardened && !mayPreamble && !maySelfSeal && !mayStringStub) return { code: source, report };
 
-  const ast = parse(source, {
-    sourceType: "unambiguous",
-    plugins: ["typescript", "jsx", "topLevelAwait"],
-    allowReturnOutsideFunction: true,
-    errorRecovery: true,
-  });
+  let ast;
+  try {
+    ast = parse(source, {
+      sourceType: "unambiguous",
+      // JSX only where the language actually allows it — on .ts/.mts/.cts
+      // (and plain .js), `<T>expr` is a TypeScript cast, not markup.
+      plugins: [
+        "typescript",
+        ...(/\.[cm]?[jt]sx$/.test(filename) || /\.jsx$/.test(filename) ? ["jsx"] : []),
+        "topLevelAwait",
+        ["decorators", { version: "2023-11" }],
+      ],
+      allowReturnOutsideFunction: true,
+      errorRecovery: true,
+    });
+  } catch (e) {
+    return { code: source, report: { ...report, note: `unparseable — passthrough (${e.message.split("\n")[0]})` } };
+  }
   const body = ast.program.body;
   const eval0 = makeEvaluator(new Map());
   const ev0 = eval0.ev;

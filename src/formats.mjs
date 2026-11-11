@@ -420,7 +420,15 @@ export function scrubSqlite(inputPath, outputPath) {
       rmSync(outputPath + "-wal", { force: true });
     }
   } catch { /* no -wal sidecar, or checkpoint failed — output stays consistent */ }
-  const db = new DatabaseSync(outputPath);
+  let db;
+  try {
+    db = new DatabaseSync(outputPath);
+    db.prepare("SELECT 1 FROM sqlite_master LIMIT 1").get();
+  } catch (e) {
+    // Extension-fallback routed a non-database here (leveldb, garbage bytes):
+    // the copy already preserves the input — report the boundary, don't crash.
+    return { buffer: readFileSync(outputPath), report: { format: "sqlite", hardened: false, note: `not a sqlite database — passthrough (${e.errstr ?? e.message})` } };
+  }
   // BLA's generated trap columns call a runtime-only UDF — register a stub
   // so the schema parses and VACUUM/SELECT don't explode.
   try { db.function("enclave_unseal_payload", { deterministic: true, varargs: true }, (_x) => null); }
