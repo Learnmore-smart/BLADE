@@ -21,7 +21,8 @@ recovered more precisely — are welcome.
 
 ```bash
 npm install
-node scripts/verify.mjs          # core suite — expect 29 passed, 0 failed
+node scripts/verify.mjs          # core suite — expect 37 passed, 0 failed
+node scripts/verify-all.mjs      # full matrix — 25 suites incl. adversarial
 ```
 
 The vendored BLA source (used by fixture generators) is gitignored. To
@@ -47,8 +48,11 @@ cp -r vendor/node_modules/bla-agents vendor/bla
      neutralization, salvage
 4. Assert byte-level results where possible (byte-exact restore, or the exact
    kept+flag residue with a reason string).
-5. `node scripts/verify.mjs` must stay 29/29 and the affected adversarial
-   suites must stay green.
+5. `node scripts/verify.mjs` must stay 37/37 and the affected adversarial
+   suites must stay green. New format routes also need an entry in
+   `scripts/verify-all.mjs`, a routing expectation in
+   `test-fixtures/adversarial/detect/run.mjs` (if corpus-shaped), and a
+   `npm run test:<format>` script.
 
 ## Style
 
