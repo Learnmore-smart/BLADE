@@ -226,4 +226,9 @@ function main() {
     console.log(!verbose && json.length > 1200 ? json.slice(0, 1200) + "\n ... (truncated; see --report)" : json);
   }
 }
-main();
+// Only run when invoked directly (`blade <input>` / `node src/cli.mjs ...`);
+// importing this module for its exports must not execute main().
+import { pathToFileURL } from "node:url";
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
+
+export { main, USAGE, VERSION };
