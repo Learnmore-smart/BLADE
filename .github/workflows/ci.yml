@@ -21,6 +21,8 @@ jobs:
           cp -r vendor/node_modules/bla-agents vendor/bla
       - name: core verification
         run: node scripts/verify.mjs
+      - name: robustness (crash-resistance)
+        run: node scripts/robustness.mjs
       - name: JS adversarial suite
         run: node test-fixtures/adversarial/js/run-adversarial.mjs
       - name: BLA 3.2.4 regression suite

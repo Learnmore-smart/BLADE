@@ -8,6 +8,7 @@
   },
   "scripts": {
     "test": "node scripts/verify.mjs",
+    "test:robustness": "node scripts/robustness.mjs",
     "fixtures": "node scripts/make-fixtures.mjs",
     "blade": "node src/cli.mjs",
     "test:asar": "node test-fixtures/adversarial/asar/run.mjs",
