@@ -360,18 +360,24 @@ export function reconstructSourceMap(hardenedMapJson, dehardenedJs, origJsLen) {
 
   // carry over sources pairwise with sourcesContent, stripped of markers and
   // free of pure-decoy entries; fall back to a single synthetic source that
-  // names the dehardened artifact itself.
+  // names the dehardened artifact itself. A detected honey map carries ZERO
+  // real provenance — every source/sourcesContent entry is BLA-manufactured
+  // (enclave bridge stubs, legacy-abi-transport-shim.ts, canary GUIDs), so
+  // carry-over is skipped wholesale: keeping `src/compat/legacy-abi-transport-
+  // shim.ts` would forward the decoy into the reconstructed map.
   let sources = [], sourcesContent = [];
-  const inSrc = Array.isArray(hardenedMapJson.sources) ? hardenedMapJson.sources : [];
-  const inContent = Array.isArray(hardenedMapJson.sourcesContent) ? hardenedMapJson.sourcesContent : [];
-  for (let i = 0; i < inSrc.length; i++) {
-    const raw = typeof inSrc[i] === "string" ? inSrc[i] : "";
-    const cleaned = stripMapMarkers(raw).trim();
-    // a source that survives only as an enclave namespace path is pure decoy
-    if (cleaned === "" || /(^|\/)enclave\//i.test(cleaned) || /^enclave:/i.test(cleaned)) continue;
-    sources.push(cleaned);
-    const c = inContent[i];
-    sourcesContent.push(typeof c === "string" ? stripMapMarkers(c) : c ?? null);
+  if (!honey) {
+    const inSrc = Array.isArray(hardenedMapJson.sources) ? hardenedMapJson.sources : [];
+    const inContent = Array.isArray(hardenedMapJson.sourcesContent) ? hardenedMapJson.sourcesContent : [];
+    for (let i = 0; i < inSrc.length; i++) {
+      const raw = typeof inSrc[i] === "string" ? inSrc[i] : "";
+      const cleaned = stripMapMarkers(raw).trim();
+      // a source that survives only as an enclave namespace path is pure decoy
+      if (cleaned === "" || /(^|\/)enclave\//i.test(cleaned) || /^enclave:/i.test(cleaned)) continue;
+      sources.push(cleaned);
+      const c = inContent[i];
+      sourcesContent.push(typeof c === "string" ? stripMapMarkers(c) : c ?? null);
+    }
   }
   const file =
     typeof hardenedMapJson.file === "string" && hardenedMapJson.file.trim() !== ""

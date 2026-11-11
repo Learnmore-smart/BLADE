@@ -34,7 +34,8 @@ const plain = join(root, "test-fixtures", "plain");
 
 // ---------- per-format expectations ----------
 const MARKER = /enclave_build_id|COGNITIVE_ARMOR|PROTECTED_CANARY|_interlockSafetyCorpus_|obligationFlood_|\[BLA-|TRANSPORT_ENDPOINT|bla_tarpit|EnclaveStateNode|shadowHeap|BlaDexXref|\[ABI-COMPAT-SHIM\]|enclave\.internal/i;
-const BYTE_EXACT = new Set([".dex", ".beam", ".evm", ".pcap", ".uf2", ".elf", ".macho", ".exe", ".ptx", ".dll"]);
+const BYTE_EXACT = new Set([".dex", ".beam", ".evm", ".pcap", ".uf2", ".elf",
+  ".macho", ".exe", ".ptx", ".dll", ".class", ".bplist", ".pyc", ".dat", ".plist"]);
 const ext = (f) => f.slice(f.lastIndexOf("."));
 
 const CONTENT_IDS = {
@@ -151,6 +152,15 @@ for (const level of INTENSITIES) {
     if (e === ".zip" || e === ".apk") {
       check(tag, "eocd", out.readUInt32LE(out.length - 22) === 0x06054b50, "EOCD missing");
       check(tag, "marker-free", !MARKER.test(out.toString("latin1")));
+    }
+    if (e === ".map") {
+      // BLA replaces sourcemaps wholesale — recovery is a reconstructed
+      // canonical map: valid JSON, versioned, never the decoy blob.
+      let map = null;
+      try { map = JSON.parse(out.toString("utf8")); } catch { }
+      check(tag, "map-json", map && map.version === 3 && "mappings" in map,
+        "not a reconstructed v3 sourcemap");
+      check(tag, "marker-free", !MARKER.test(out.toString("utf8")));
     }
     if (EXEC_CHECK[f]) {
       // the strongest check: cleaned business logic still EXECUTES identically
