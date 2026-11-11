@@ -32,12 +32,15 @@ usage: node src/cli.mjs <input> [-o output] [--report out.json] [--quiet] [--ver
 
 options:
   -o <path>          output path (default: <input>.cleaned<ext>)
+  --format <kind>    force a scrubber route instead of detect()
   --report <path>    write the full JSON report to <path>
   --quiet            suppress the report dump on stdout
   --verbose          never truncate the report on stdout
   --dry-run          analyze only — write no artifact or sidecar files
   --help, -h         show this text
   --version          print the blade version
+
+input "-" reads the artifact from stdin (requires -o).
 
 exit codes: 0 success · 1 unrecognized format · 2 usage/IO error
 
@@ -49,14 +52,15 @@ function main() {
   if (args.includes("--version")) { console.log(VERSION); process.exit(0); }
   const oIdx = args.indexOf("-o");
   const rIdx = args.indexOf("--report");
+  const fIdx = args.indexOf("--format");
   const quiet = args.includes("--quiet");
   const verbose = args.includes("--verbose");
   const dryRun = args.includes("--dry-run");
   const writeOut = dryRun ? () => {} : writeFileSync;
-  const VALUE_FLAGS = new Set(["-o", "--report"]);
-  const FLAG_SET = new Set(["-o", "--report", "--quiet", "--verbose", "--dry-run", "--help", "-h", "--version"]);
+  const VALUE_FLAGS = new Set(["-o", "--report", "--format"]);
+  const FLAG_SET = new Set(["-o", "--report", "--format", "--quiet", "--verbose", "--dry-run", "--help", "-h", "--version", "-"]);
   for (const a of args) {
-    if (a.startsWith("-") && !FLAG_SET.has(a)) {
+    if (a.startsWith("-") && a !== "-" && !FLAG_SET.has(a)) {
       console.error(`blade: unknown flag ${a}\n\n${USAGE}`);
       process.exit(2);
     }
@@ -68,20 +72,39 @@ function main() {
       process.exit(2);
     }
   }
-  const input = args.find((a, i) => !a.startsWith("-") && args[i - 1] !== "-o" && args[i - 1] !== "--report");
+  const input = args.find((a, i) => (a === "-" || !a.startsWith("-")) && !VALUE_FLAGS.has(args[i - 1]));
   if (!input) {
     console.error(USAGE);
     process.exit(2);
   }
+  const stdin = input === "-";
+  if (stdin && oIdx === -1) {
+    console.error("blade: stdin input requires -o <output>");
+    process.exit(2);
+  }
   let buf;
   try {
-    buf = readFileSync(input);
+    buf = stdin ? readFileSync(0) : readFileSync(input);
   } catch (e) {
     console.error(`blade: cannot read ${input}: ${e.code ?? e.message}`);
     process.exit(2);
   }
-  const ext = extname(input).toLowerCase();
-  const kind = detect(buf, ext);
+  const ext = stdin ? "" : extname(input).toLowerCase();
+  const KNOWN_KINDS = new Set(["js", "asar", "wasm", "sqlite", "safetensors", "gguf", "native", "dex", "il2cpp", "dotnet", "evm", "ptx", "jvm", "plist", "pcap", "uf2", "beam", "pyc", "zip", "py", "html", "sourcemap", "header", "bunfs-snapshot", "sidecar-note"]);
+  let kind;
+  if (fIdx !== -1) {
+    kind = args[fIdx + 1];
+    if (!KNOWN_KINDS.has(kind)) {
+      console.error(`blade: unknown --format '${kind}' (known: ${[...KNOWN_KINDS].join(", ")})`);
+      process.exit(2);
+    }
+  } else {
+    kind = detect(buf, ext);
+  }
+  if (stdin && kind === "sqlite") {
+    console.error("blade: sqlite scrubbing needs a real input path (WAL sidecars are merged) — stdin unsupported");
+    process.exit(2);
+  }
   const output = oIdx !== -1 ? args[oIdx + 1] : input.replace(/(\.[^.]*)?$/, ".cleaned$1");
 
   let report;
