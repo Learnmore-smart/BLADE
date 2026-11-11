@@ -19,7 +19,7 @@ const EXPECT = {
   "addon.node": "native", "app.aab": "zip", "app.apk": "zip", "app.ipa": "zip",
   "app.js.map": "sourcemap", "app.xapk": "zip", "asar-named.bin": "asar",
   "bad.asar": "asar", "bad.beam": "beam", "bad.class": "jvm", "bad.dex": "dex",
-  "bad.pyc": "unknown", "bad.uf2": "uf2", "bad.wasm": "wasm",
+  "bad.pyc": "pyc", "bad.uf2": "uf2", "bad.wasm": "wasm",
   "blob-elf.bin": "native", "broken-marker.js": "js",
   "bsjb-deep.exe": "dotnet", "bsjb-early.exe": "dotnet",
   "bytecode-noext": "unknown", "cafebabe-random.bin": "native",

@@ -122,5 +122,9 @@ export function detect(buf, ext) {
   if (ext === ".beam") return "beam";
   if (ext === ".uf2") return "uf2";
   if ([".pcap", ".pcapng", ".cap"].includes(ext)) return "pcap";
+  if (ext === ".pyc") return "pyc";
+  if (ext === ".bplist") return "plist";
+  if ([".jar", ".apk", ".aab", ".ipa", ".xapk", ".apex", ".war", ".ear"].includes(ext)) return "zip";
+  if ([".exe", ".dll", ".so", ".dylib", ".node", ".elf"].includes(ext)) return "native";
   return "unknown";
 }
