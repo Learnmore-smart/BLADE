@@ -686,11 +686,12 @@ export function scrubJvm(buf) {
 export function scrubPlistXml(text) {
   let out = text;
   let removedKeys = 0;
-  // internal-subset DOCTYPE -> plain DOCTYPE
-  out = out.replace(/<!DOCTYPE\s+plist\s+PUBLIC\s+"([^"]+)"\s+"([^"]+)"\s*\[\s*\]\s*>/i,
-    '<!DOCTYPE plist PUBLIC "$1" "$2">');
-  out = out.replace(/<!DOCTYPE\s+plist\s+SYSTEM\s+"([^"]+)"\s*\[\s*\]\s*>/i,
-    '<!DOCTYPE plist SYSTEM "$1">');
+  // internal-subset DOCTYPE -> plain DOCTYPE (ids may be single- or
+  // double-quoted; XML permits both)
+  out = out.replace(/<!DOCTYPE\s+plist\s+PUBLIC\s+(['"])([^'"]+)\1\s+(['"])([^'"]+)\3\s*\[\s*\]\s*>/i,
+    '<!DOCTYPE plist PUBLIC "$2" "$4">');
+  out = out.replace(/<!DOCTYPE\s+plist\s+SYSTEM\s+(['"])([^'"]+)\1\s*\[\s*\]\s*>/i,
+    '<!DOCTYPE plist SYSTEM "$2">');
   // BLA's emitted keys (apple-plist.ts): BLACanaryCredential_N,
   // BLATransportEndpoint_N, BLASystemDiagnostic_N,
   // BLABinaryPlistNestingDepthClaim, BLAEnclaveAttestationAuthority,
