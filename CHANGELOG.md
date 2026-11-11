@@ -22,6 +22,10 @@ All notable changes to BLADE are documented here. The format follows
   (analyze + report without writing artifacts).
 - `report.suspiciousKeys` on plist scrubbing — BLA-prefixed keys outside the
   known emission set are surfaced instead of silently kept.
+- PCAP: pcapng block walk — decoy EPB/SPB/PB blocks are dropped; markers
+  inside structural blocks (SHB/IDB/options) are flagged but kept.
+- `report.inputSha256` + `report.inputSize` — provenance on every report.
+- JSDoc across the full public API surface (all 50 exports).
 - `.gitattributes` (LF for source, verbatim `-text` for `test-fixtures/`),
   `.editorconfig`, `CHANGELOG.md`.
 - npm script per adversarial suite (`npm run test:<format>`).
@@ -40,6 +44,12 @@ All notable changes to BLADE are documented here. The format follows
   `cli.mjs` now self-gates on direct invocation.
 - plist/py harnesses hardcoded machine-specific python paths — both now
   probe `BLADE_PYTHON`/`py`/`python3`/`python` and skip gracefully.
+- `scrubPcap` rejected big-endian *nanosecond* pcaps (0xa1b23c4d BE) —
+  they now parse and decoy packets are dropped correctly.
+- `scrubSqlite` copied only the main DB file — committed-but-uncheckpointed
+  rows in a `-wal` sidecar were silently lost. The WAL is now copied,
+  checkpointed into the output, and journal mode restored to DELETE so the
+  artifact is one self-contained file.
 - `.gitattributes` initially normalized `test-fixtures/` `.py` files,
   destroying the CRLF-preservation property under test; the fixture tree is
   now stored verbatim.
