@@ -297,5 +297,53 @@ check("html: on*=/javascript: decoy names flagged but kept", () => {
   assert.ok(r.report.suspiciousEventHandlers?.length === 2);
 });
 
+// ---- 13. evaluator: corpus digest round-trip
+console.log("== evaluator ==");
+const { computeContainmentCorpusDigest, repairCorpusDigest } =
+  await import(new URL("file:///" + path.join(ROOT, "src", "evaluator.mjs").replace(/\\/g, "/")));
+
+check("corpus digest: tampered single char is uniquely repairable", () => {
+  const entries = [
+    { coupledAnchorSymbol: "anchor_a", triggerPayload: "payload one" },
+    { coupledAnchorSymbol: "anchor_b", triggerPayload: "payload two" },
+  ];
+  const expected = computeContainmentCorpusDigest(entries);
+  const tampered = entries.map((e) => ({ ...e }));
+  tampered[1] = { ...tampered[1], triggerPayload: "payload Xwo" };
+  const fix = repairCorpusDigest(tampered, expected);
+  assert.ok(fix, "repair should find the single-char fix");
+  const repaired = tampered.map((e, i) =>
+    i === fix.entry ? { ...e, [fix.field]: fix.newText } : e);
+  assert.equal(computeContainmentCorpusDigest(repaired), expected);
+});
+
+check("corpus digest: untampered entries report no repair", () => {
+  const entries = [{ coupledAnchorSymbol: "a", triggerPayload: "p" }];
+  const expected = computeContainmentCorpusDigest(entries);
+  assert.equal(repairCorpusDigest(entries, expected), null);
+});
+
+// ---- 14. CLI edges: stdin routing + report-to-stdout
+console.log("== cli edges ==");
+check("stdin '-' requires -o", () => {
+  try {
+    execFileSync(process.execPath, [path.join(ROOT, "src", "cli.mjs"), "-"], { input: Buffer.alloc(8), stdio: "pipe" });
+    assert.fail("should have exited 2");
+  } catch (e) { assert.equal(e.status, 2); }
+});
+check("--report - streams untruncated JSON to stdout", () => {
+  const out = execFileSync(process.execPath, [path.join(ROOT, "src", "cli.mjs"),
+    path.join(HARD, "capture.pcap"), "-o", path.join(CLEAN, "edge.pcap"), "--report", "-"], { stdio: "pipe" });
+  const r = JSON.parse(out.toString());
+  assert.equal(r.format, "pcap");
+  assert.ok(r.inputSha256?.length === 64);
+});
+check("--format override beats detection", () => {
+  const out = execFileSync(process.execPath, [path.join(ROOT, "src", "cli.mjs"),
+    "-", "-o", path.join(CLEAN, "edge.evm"), "--format", "evm", "--report", "-"],
+    { input: readFileSync(path.join(HARD, "token.evm")), stdio: "pipe" });
+  assert.equal(JSON.parse(out.toString()).format, "evm");
+});
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
