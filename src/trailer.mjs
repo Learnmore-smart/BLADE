@@ -1942,8 +1942,18 @@ export function scrubHtml(text) {
     return `<script${attrs}>\n${r.code}\n</script>`;
   });
   const out = scrubbed;
+  // decoy machinery smuggled into event-handler attributes / javascript:
+  // URLs survives the script-body pass — can't be stripped without changing
+  // page behavior, but it must be surfaced for the analyst.
+  const EVENT_MACHINERY = /(obligationFlood|stepShadowHeap|readSplitShare|shadowHeap|labyrinthDispatch|scc_[0-9a-z]|diffFrontier|cdpShape|fridaCapture|fridaRealmRing|tokenSink|_shadowVault|_interlockSafetyCorpus|_deriveContainmentCorpusDigest|_runtimeState|_SELF_SEAL_TARGET|enclave_unseal|measureIntegrity)[A-Za-z0-9_$]*/i;
+  const suspiciousEventHandlers = [];
+  for (const am of out.matchAll(/\b(on[a-z]+)\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)|href\s*=\s*(["'])javascript:([^"']*)\3/gi)) {
+    const code = am[2] ?? am[4] ?? "";
+    const hits = [...code.matchAll(new RegExp(EVENT_MACHINERY.source, "gi"))].map((x) => x[0]);
+    if (hits.length) suspiciousEventHandlers.push(`${am[1] ?? "href"}: ${[...new Set(hits)].join(",")}`);
+  }
   const residual = /\[BLA-|sourceMappingURL=data:[^"'\s]*enclave/.test(out);
-  return { code: out, report: { format: "html", hardened: dehardened > 0 || dropped > 0, scriptsDehardened: dehardened, decoyScriptsDropped: dropped, dehardenFailures: failed, residualMarkers: residual } };
+  return { code: out, report: { format: "html", hardened: dehardened > 0 || dropped > 0, scriptsDehardened: dehardened, decoyScriptsDropped: dropped, dehardenFailures: failed, residualMarkers: residual || suspiciousEventHandlers.length > 0, ...(suspiciousEventHandlers.length ? { suspiciousEventHandlers } : {}) } };
 }
 
 // ---------- source map ----------
