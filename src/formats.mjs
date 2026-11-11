@@ -1,7 +1,7 @@
 // BLADE format scrubbers — adaptive salvage of BLA's container-level defenses.
 // Each produces a cleaned artifact (same format) that downstream tools (REA)
 // can parse within their resource budgets, plus a report of what was dropped.
-import { copyFileSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import { dehardenJs, looksBlaHardened } from "./js-deharden.mjs";
@@ -368,6 +368,26 @@ const schemaMatches = (name, sql) => {
 const q = (name) => `"${String(name).replaceAll('"', '""')}"`;
 export function scrubSqlite(inputPath, outputPath) {
   copyFileSync(inputPath, outputPath);
+  // WAL sidecar: committed-but-uncheckpointed rows live in <db>-wal, not the
+  // main file — copying only the main file silently drops them, and VACUUM
+  // then discards them permanently. Copy the WAL over and checkpoint it into
+  // the output so every committed row survives. -shm is rebuildable, never
+  // copied.
+  let walFrames = 0, walSeen = false;
+  try {
+    if (statSync(inputPath + "-wal").size > 0) {
+      walSeen = true;
+      copyFileSync(inputPath + "-wal", outputPath + "-wal");
+      const db0 = new DatabaseSync(outputPath);
+      try {
+        walFrames = db0.prepare("PRAGMA wal_checkpoint(TRUNCATE)").get()?.checkpointed ?? 0;
+        // back to rollback mode — the cleaned artifact is a single
+        // self-contained file, no -wal sidecar ever re-created on open
+        db0.exec("PRAGMA journal_mode=DELETE");
+      } finally { db0.close(); }
+      rmSync(outputPath + "-wal", { force: true });
+    }
+  } catch { /* no -wal sidecar, or checkpoint failed — output stays consistent */ }
   const db = new DatabaseSync(outputPath);
   // BLA's generated trap columns call a runtime-only UDF — register a stub
   // so the schema parses and VACUUM/SELECT don't explode.
@@ -525,7 +545,7 @@ export function scrubSqlite(inputPath, outputPath) {
   db.close();
   return {
     buffer: readFileSync(outputPath),
-    report: { format: "sqlite", objectsIn: objects.length, dropped, keptTables: tables, dropFailed, trapColumnsRemoved: trapColsRemoved, suspiciousObjects: suspicious, suspicionScores },
+    report: { format: "sqlite", objectsIn: objects.length, dropped, keptTables: tables, dropFailed, trapColumnsRemoved: trapColsRemoved, suspiciousObjects: suspicious, suspicionScores, ...(walSeen ? { walSidecarCheckpointed: true, walFramesCheckpointed: walFrames } : {}) },
   };
 }
 

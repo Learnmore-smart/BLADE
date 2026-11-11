@@ -293,6 +293,31 @@ FIXTURES.push({
   expectWalHeader: true,
 });
 
+// 08b — input arrives WITH its populated -wal: the scrubber must checkpoint
+// the sidecar into the output (previously copied the main file only)
+FIXTURES.push({
+  id: "08b", file: "08b-wal-present.sqlite",
+  desc: "live WAL set (db + -wal) — committed WAL rows must reach the output",
+  build(db, path) {
+    db.close();
+    const tmp = join(FIX, "_tmp_wal_present.sqlite");
+    for (const suf of ["", "-wal", "-shm"]) { try { rmSync(tmp + suf); } catch {} }
+    const src = openDb(tmp);
+    src.exec(`PRAGMA journal_mode=WAL;
+      CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT);
+      INSERT INTO users VALUES (1,'checkpointed-row');`);
+    src.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+    src.exec("INSERT INTO users VALUES (2,'wal-live-1'),(3,'wal-live-2');");
+    // copy the full live set — main + wal + shm — as a user would supply it
+    copyFileSync(tmp, path);
+    copyFileSync(tmp + "-wal", path + "-wal");
+    copyFileSync(tmp + "-shm", path + "-shm");
+    src.close();
+    for (const suf of ["", "-wal", "-shm"]) { try { rmSync(tmp + suf); } catch {} }
+  },
+  bizTables: ["users"], bizObjects: [], decoys: [],
+});
+
 // 09 — SQL injection via crafted object name (unescaped identifier in DROP)
 FIXTURES.push({
   id: "09", file: "09-name-injection.sqlite",
