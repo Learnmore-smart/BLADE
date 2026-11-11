@@ -4,7 +4,10 @@
   "description": "Bypass LLM Agent Defense Engine — adaptive de-hardening of bla-agents protected artifacts so analyzers (REA, decompilers, LLM recon pipelines) see real logic instead of decoys",
   "main": "src/index.mjs",
   "exports": {
-    ".": "./src/index.mjs",
+    ".": {
+      "types": "./src/index.d.mts",
+      "default": "./src/index.mjs"
+    },
     "./cli": "./src/cli.mjs"
   },
   "bin": {
