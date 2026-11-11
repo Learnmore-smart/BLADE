@@ -1000,6 +1000,40 @@ function jpegDeclaredEnd(buf) {
   return Math.max(0, buf.length - 4096) + at + 2;
 }
 
+function pcapDeclaredEnd(buf) {
+  if (buf.length < 24) return -1;
+  const le = buf.readUInt32LE(0) === 0xa1b2c3d4 || buf.readUInt32LE(0) === 0xa1b23c4d;
+  const be = !le && (buf.readUInt32BE(0) === 0xa1b2c3d4 || buf.readUInt32BE(0) === 0xa1b23c4d);
+  if (!le && !be) return -1;
+  const u32 = le ? (o) => buf.readUInt32LE(o) : (o) => buf.readUInt32BE(o);
+  let at = 24;
+  while (at + 16 <= buf.length) {
+    let incl = u32(at + 8);
+    if (incl > 16 * 1024 * 1024 || at + 16 + incl > buf.length) {
+      const alt = le ? buf.readUInt32LE(at + 8) : incl;
+      if (!le && alt <= 16 * 1024 * 1024 && at + 16 + alt <= buf.length) incl = alt;
+      else return at; // desync — bytes past here are overlay
+    }
+    at += 16 + incl;
+  }
+  return at;
+}
+
+function pcapngDeclaredEnd(buf) {
+  if (buf.length < 12 || buf.readUInt32LE(0) !== 0x0a0d0d0a) return -1;
+  let at = 0;
+  while (at + 12 <= buf.length) {
+    let len = buf.readUInt32LE(at + 4);
+    if (len < 12 || len % 4 !== 0 || at + len > buf.length) {
+      const alt = buf.readUInt32BE(at + 4);
+      if (alt >= 12 && alt % 4 === 0 && at + alt <= buf.length) len = alt;
+      else return at;
+    }
+    at += len;
+  }
+  return at;
+}
+
 const DECLARED_END = {
   pe: peDeclaredEnd, exe: peDeclaredEnd, dll: peDeclaredEnd,
   elf: elfDeclaredEnd, so: elfDeclaredEnd,
@@ -1011,6 +1045,8 @@ const DECLARED_END = {
   safetensors: safetensorsDeclaredEnd,
   png: pngDeclaredEnd,
   jpeg: jpegDeclaredEnd, jpg: jpegDeclaredEnd,
+  pcap: pcapDeclaredEnd, cap: pcapDeclaredEnd,
+  pcapng: pcapngDeclaredEnd,
 };
 
 function detectDeclaredEnd(buf, hint) {
@@ -1028,6 +1064,8 @@ function detectDeclaredEnd(buf, hint) {
         ["safetensors", safetensorsDeclaredEnd],
         ["png", pngDeclaredEnd],
         ["jpeg", jpegDeclaredEnd],
+        ["pcap", pcapDeclaredEnd],
+        ["pcapng", pcapngDeclaredEnd],
       ];
   for (const [fmt, fn] of order) {
     try {
