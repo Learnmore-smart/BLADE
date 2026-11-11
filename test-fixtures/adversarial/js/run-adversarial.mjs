@@ -535,8 +535,11 @@ const diff = (a, b) => JSON.stringify(a) !== JSON.stringify(b);
 {
   const src = read("src-02-double-plain.js");
   const h = protect(src, { intensity: "balanced", seed: "shape-seed" });
-  // actual shape: `const <seed> = <base> | (typeof D === "function" && ...)`
-  const mutated = h.replace(/=\s*(\d+)\s*\|\s*\(typeof _deriveContainmentCorpusDigest/, "= $1 + (typeof _deriveContainmentCorpusDigest");
+  // actual shape: `const <seed> = <base> | (<test> ? 1 : 0)` where test is
+  // `typeof D === "function" && D(0) === N` (≤3.2.2), `D(0) === N` (3.2.4
+  // bare), or `[fns].every(_f => typeof _f === "function") && D(0) === N`
+  // (3.2.4 decoy entanglement) — perturb only the top `|` → `+`.
+  const mutated = h.replace(/=\s*(\d+)\s*\|\s*\((?=\[|typeof|_derive)/, "= $1 + (");
   save("11.seedshape.js", mutated);
   const applied = mutated !== h;
   const { r, crash } = deharden(mutated, "11.js");
@@ -549,7 +552,7 @@ const diff = (a, b) => JSON.stringify(a) !== JSON.stringify(b);
     const calls = { seal: async (ex) => ex.sealToken("ENT-123", 7) };
     const rp = plain.ok ? await probe(plain.exports, calls) : { err: plain.error };
     const rc = clean.ok ? await probe(clean.exports, calls) : { err: clean.error };
-    const seedNameM = mutated.match(/const\s+(\w+)\s*=\s*\d+\s*\+\s*\(typeof/)?.[1] ?? "___none";
+    const seedNameM = mutated.match(/const\s+(\w+)\s*=\s*\d+\s*\+\s*\(/)?.[1] ?? "___none";
     const opaqueLeft = new RegExp(`Math\\.imul\\(${seedNameM}[ ^]`).test(r.code);
     const seedDeclLeft = new RegExp(`const\\s+${seedNameM}\\s*=`).test(r.code);
     verdict = !applied ? "CRASH(mutation)" : diff(rp, rc) ? "SEMANTIC-DIFF" : opaqueLeft || seedDeclLeft ? "DECOY-SURVIVES" : "PASS";

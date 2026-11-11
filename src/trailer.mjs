@@ -87,6 +87,56 @@ function peContentEnd(buf) {
   return end || -1;
 }
 
+// ---------- BLA 3.2.4 PE `.enclave` mapped-section decoy ----------
+// injectMappedWindowsPeDecoySection appends a forged `.enclave`
+// IMAGE_SECTION_HEADER as the LAST section (VirtualSize=payloadLen,
+// VirtualAddress=aligned max VA, SizeOfRawData=alignUp(payload,FA),
+// PointerToRawData=alignUp(oldEOF,FA), Characteristics=0x40000060), bumps
+// NumberOfSections/SizeOfImage, zeroes CheckSum and writes the payload at
+// EOF — and/or plants a truncated copy into a section's all-zero slack.
+// The payload is signature-recognizable: 48B x86-64 "function islands"
+// (endbr64;push rbp;mov rbp,rsp), an RSDS CodeView record, a fake PDB path
+// (enclave-ring0-runtime), `\0.enclave\0`, MSVC RTTI descriptors
+// (`.?AV…@@`) and Win32 API dispatch strings. Verify by signature so a
+// legit .enclave section (real SGX enclave binaries exist) is left alone.
+const ENCLAVE_SEC = B(".enclave"); // exact 8-byte IMAGE_SECTION_HEADER name
+const PE_ENCLAVE_SIGS = [
+  Buffer.from([0xf3, 0x0f, 0x1e, 0xfa, 0x55, 0x48, 0x89, 0xe5]), // island prologue
+  B("\0.enclave\0"), B("enclave-ring0-runtime"), B("RSDS"),
+];
+function peEnclaveSig(region) {
+  return PE_ENCLAVE_SIGS.some((s) => region.includes(s)) ||
+         (region.includes(B(".?AV")) && region.includes(B("@@"))); // RTTI descriptor
+}
+// Parse just enough of the PE headers for section work. null = malformed
+// (bad lfanew, implausible nsec, truncated headers) — callers no-op.
+function peParse(buf) {
+  if (buf.length < 0x40 || buf[0] !== 0x4d || buf[1] !== 0x5a) return null;
+  const pe = buf.readUInt32LE(0x3c);
+  if (pe + 24 > buf.length || buf.readUInt32LE(pe) !== 0x00004550) return null;
+  const coff = pe + 4;
+  const nsec = buf.readUInt16LE(coff + 2);
+  const optSize = buf.readUInt16LE(coff + 16);
+  const opt = coff + 20;
+  if (opt + optSize > buf.length || nsec === 0 || nsec > 96 || optSize < 64) return null;
+  const magic = buf.readUInt16LE(opt);
+  if (magic !== 0x10b && magic !== 0x20b) return null;
+  const secTbl = opt + optSize;
+  if (secTbl + nsec * 40 > buf.length) return null;
+  const sec = (i) => {
+    const s = secTbl + i * 40;
+    return {
+      off: s,
+      name: buf.subarray(s, s + 8),
+      vsize: buf.readUInt32LE(s + 8),
+      va: buf.readUInt32LE(s + 12),
+      rawsz: buf.readUInt32LE(s + 16),
+      rawptr: buf.readUInt32LE(s + 20),
+    };
+  };
+  return { nsec, sec, numSecOff: coff + 2, sizeOfImageOff: opt + 56 };
+}
+
 function cutAtMarker(buf, marker, backup = 0, boundary = -1) {
   const m = B(marker);
   let at = buf.indexOf(m);
@@ -152,14 +202,77 @@ function cutAtMarker(buf, marker, backup = 0, boundary = -1) {
 // additionally have .go.buildinfo / .isolate sections overwritten in place —
 // originals are destroyed; detect, zero the decoy bytes, and report.
 export function scrubNative(buf) {
+  const report = { format: "native", bytesIn: buf.length, decoys: [] };
+  // BLA 3.2.4 `.enclave` mapped-section injection — fix the section table
+  // BEFORE peContentEnd computes the trailer boundary, so the decoy's raw
+  // range stops counting as declared content. Only a signature-verified,
+  // LAST-section `.enclave` is fully stripped; a mid-table one is defanged
+  // in place (header zeroed) and reported — its payload bytes are never cut.
+  let enclaveLast = null;
+  {
+    const pe = peParse(buf);
+    if (pe) {
+      for (let i = pe.nsec - 1; i >= 0; i--) {
+        const s = pe.sec(i);
+        if (!s.name.equals(ENCLAVE_SEC)) continue;
+        if (s.rawptr === 0) continue; // raw data overlapping the MZ header can't be a BLA append
+        const scanEnd = Math.min(s.rawptr + s.rawsz, buf.length, s.rawptr + 4096);
+        if (scanEnd <= s.rawptr || !peEnclaveSig(buf.subarray(s.rawptr, scanEnd))) continue;
+        buf.fill(0, s.off, s.off + 40); // zero the forged IMAGE_SECTION_HEADER
+        report.peEnclaveSectionRemoved = true;
+        if (i === pe.nsec - 1) {
+          buf.writeUInt16LE(pe.nsec - 1, pe.numSecOff);   // NumberOfSections -= 1
+          buf.writeUInt32LE(s.va, pe.sizeOfImageOff);     // SizeOfImage = pre-add aligned image end
+          enclaveLast = s;
+          report.decoys.push({ kind: "pe-enclave-section", virtualSize: s.vsize, rawSize: s.rawsz });
+        } else {
+          report.decoys.push({ kind: "pe-enclave-section", index: i, note: "mid-table decoy — header zeroed, raw bytes retained" });
+        }
+      }
+    }
+  }
   const boundary = peContentEnd(buf);
   const cut = [cutAtMarker(buf, "[BLA-NATIVE-SHIELD-V", 1, boundary), cutAtMarker(buf, "[BLA-NATIVE-SHIELD]", 1, boundary)]
     .filter(Boolean).sort((a, b) => a.markerAt - b.markerAt)[0];
-  const report = { format: "native", bytesIn: buf.length, decoys: [] };
   let out = cut ? cut.buffer : Buffer.from(buf);
   if (cut) {
     report.decoys.push({ kind: "eof-trailer", bytesDropped: cut.cutBytes });
     report.trailerDropped = cut.cutBytes;
+  }
+  // Drop the removed section's raw bytes only when they reach the surviving
+  // EOF (bare append, or only a BLA trailer followed them — already cut).
+  // Real trailing content (signature/overlay) keeps the bytes + flag.
+  if (enclaveLast) {
+    const entry = report.decoys.find((d) => d.kind === "pe-enclave-section" && d.index === undefined);
+    if (enclaveLast.rawptr + enclaveLast.rawsz >= out.length) {
+      if (out.length > enclaveLast.rawptr) {
+        entry.rawBytesDropped = out.length - enclaveLast.rawptr;
+        out = out.subarray(0, enclaveLast.rawptr);
+      }
+    } else {
+      report.peEnclaveRawRetained = true;
+      entry.note = "header stripped; raw bytes retained — section range does not reach output EOF";
+    }
+  }
+  // Slack cleanse: BLA also copies min(slackLen, payloadLen) payload bytes
+  // into all-zero slack of sections with virtualSize+64 <= sizeOfRawData.
+  // Re-zero the whole slack range when decoy signatures are present;
+  // non-zero slack without signatures may be real data — leave it.
+  {
+    const pe = peParse(out);
+    let cleansed = 0;
+    if (pe) {
+      for (let i = 0; i < pe.nsec; i++) {
+        const s = pe.sec(i);
+        if (s.vsize <= 0 || s.vsize + 64 > s.rawsz || s.rawptr + s.rawsz > out.length) continue;
+        const slack = out.subarray(s.rawptr + s.vsize, s.rawptr + s.rawsz);
+        if (peEnclaveSig(slack)) { slack.fill(0); cleansed += slack.length; }
+      }
+    }
+    if (cleansed > 0) {
+      report.peSlackCleansed = cleansed;
+      report.decoys.push({ kind: "pe-enclave-slack", bytesCleansed: cleansed });
+    }
   }
   // Decoy Electron-fuse sentinels: BLA emits a contiguous run of 42-byte
   // records (32B sentinel literal + 0x01 0x08 + 8 wire bytes, wire[6]=0x39
@@ -1603,6 +1716,45 @@ export function scrubPySource(text) {
     while (e2 + 1 < lines.length && lines[e2 + 1].trim() === "") e2++;
     removed.push(...lines.splice(s2, e2 - s2 + 1));
   }
+  // 1c) sidecar-entangle preamble (BLA ≥3.2.4): `import hashlib as
+  // __bla_hashlib` / `import pathlib as __bla_pathlib` + `<binding> = 0` +
+  // a `try:`/`except` self-measure block raising "integrity binding
+  // mismatch". Self-gating on the __bla_ marker + literal co-occurrence.
+  let pyPreambleRemoved = 0;
+  {
+    const imp = lines.findIndex((l) => /^import (?:hashlib|pathlib) as __bla_\w+\s*$/.test(l.trimEnd()));
+    if (imp >= 0) {
+      let tryAt = -1, blkEnd = -1;
+      for (let i = imp; i < Math.min(lines.length, imp + 8); i++) {
+        if (atCol0(lines[i].trimEnd(), "try:")) { tryAt = i; break; }
+      }
+      if (tryAt >= 0) {
+        let excAt = -1;
+        for (let i = tryAt + 1; i < lines.length; i++) {
+          const l = lines[i];
+          if (l.trim() === "" || /^\s/.test(l)) continue;
+          if (/^except\b/.test(l)) { excAt = i; continue; }
+          break;
+        }
+        if (excAt >= 0) {
+          blkEnd = lines.length - 1;
+          for (let i = excAt + 1; i < lines.length; i++) {
+            const l = lines[i];
+            if (l.trim() === "" || /^\s/.test(l)) continue;
+            blkEnd = i - 1; break;
+          }
+        }
+      }
+      if (blkEnd >= 0) {
+        const span = lines.slice(imp, blkEnd + 1).join("\n");
+        if (/integrity binding mismatch/.test(span) && /__bla_\w+/.test(span)) {
+          while (imp > 0 && lines[imp - 1].trim() === "") imp--;
+          removed.push(...lines.splice(imp, blkEnd - imp + 1));
+          pyPreambleRemoved = 1;
+        }
+      }
+    }
+  }
   // 2) woven lines inside customer defs
   let wovenRemoved = 0;
   for (let i = lines.length - 1; i >= 0; i--) {
@@ -1676,6 +1828,7 @@ export function scrubPySource(text) {
       hardened: removed.length > 0 || wovenRemoved > 0 || lit.neutralized > 0,
       injectedLinesRemoved: removed.length,
       weaveStatementsRemoved: wovenRemoved,
+      sidecarPreambleRemoved: pyPreambleRemoved,
       orphanMachinerySwept: orphanSwept,
       literalMarkersNeutralized: lit.neutralized,
       residualMarkers: leftover,

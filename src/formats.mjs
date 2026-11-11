@@ -165,8 +165,11 @@ export function scrubAsar(buf, opts = {}) {
     cursor += content.length;
   }
   // materialize real directories that lost all children to decoy drops —
-  // an empty dir is still real structure the input carried.
+  // an empty dir is still real structure the input carried. Decoy-namespace
+  // dirs (`enclave/`, `.bla/`) only materialize when a real child survived —
+  // an empty one is residue of the dropped decoys, not real structure.
   for (const p of dirsKept) {
+    if (/^(?:enclave|\.bla)(?:\/|$)/i.test(p) && !kept.some((f) => f.path.startsWith(p + "/"))) continue;
     const segs = p.split("/");
     let dir = newRoot;
     for (const s of segs) {
@@ -197,7 +200,12 @@ export function scrubAsar(buf, opts = {}) {
       decoyEntriesDropped: dropped.length,
       droppedSample: dropped.slice(0, 4).map((p) => p.slice(0, 80)),
       innerJsDehardened: jsReports.length,
-      jsDetails: jsReports.map((r) => ({ file: r.filename, bytesIn: r.bytesIn, bytesOut: r.bytesOut, strings: r.recoveredStrings.length })),
+      jsDetails: jsReports.map((r) => ({
+        file: r.filename, bytesIn: r.bytesIn, bytesOut: r.bytesOut, strings: r.recoveredStrings.length,
+        ...(r.asarPreambleRemoved ? { asarPreambleRemoved: r.asarPreambleRemoved } : {}),
+        ...(r.selfSealFunctionsRemoved ? { selfSealFunctionsRemoved: r.selfSealFunctionsRemoved } : {}),
+        ...(r.decryptedStrings ? { decryptedStrings: r.decryptedStrings } : {}),
+      })),
     },
   };
 }

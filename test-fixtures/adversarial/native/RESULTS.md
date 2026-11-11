@@ -1,15 +1,24 @@
 # Adversarial results — `scrubNative` / native trailer scrubbing
 
-> **Status update (latest run): 19/20 PASS.** Bugs 1, 2 and 4 are fixed:
-> `cutAtMarker` now vets continuations (embedded-in-identifier markers are
+> **Status update (latest run): 26/26 PASS**, including the new BLA 3.2.4
+> `.enclave` mapped-section fixture (`pe-enclave-324.exe`). Earlier notes:
+> `cutAtMarker` vets continuations (embedded-in-identifier markers are
 > content; short tails need one vocab sibling reaching near-EOF; long tails
 > need ≥2) so case1/case2-cert/case5/case6-V2 all pass; the ELF in-place
 > scan falls back to whichever SHT_STRTAB resolves sane section names, so
-> `e_shnum=0`/`e_shstrndx=SHN_XINDEX` no longer skips. Remaining:
-> `case3-fat-macho-nfat45-parseable.class` (bug 3 — a deliberate CAFEBABE
-> polyglot whose arch records were crafted to parse as a JVM constant
-> pool; both readings are structurally valid, documented ambiguity) and
-> `case4-elf-marker-in-dynsym` keeps the marker by name-scoped design.
+> `e_shnum=0`/`e_shstrndx=SHN_XINDEX` no longer skips. `case4-elf-marker-in-dynsym`
+> keeps a planted `[BLA-GO-MAPPED]` in `.dynsym` by name-scoped design.
+>
+> **BLA 3.2.4 `.enclave` counter** (`src/trailer.mjs`, `peParse`/`peEnclaveSig`):
+> the forged last-section `.enclave` IMAGE_SECTION_HEADER is zeroed,
+> `NumberOfSections`-1 and `SizeOfImage`=its VA *before* `peContentEnd`
+> computes the trailer boundary, then the decoy raw range is truncated once
+> it reaches the surviving EOF (trailer cut first). Slack-planted payload
+> copies in `vsize+64<=rawsz` sections are re-zeroed on signature match.
+> Signature verification (island prologue / `\0.enclave\0` / `.?AV…@@` /
+> `enclave-ring0-runtime` / `RSDS`) means a legit `.enclave` section and
+> non-decoy slack bytes are never touched; mid-table or non-EOF decoys are
+> defanged + flagged, never cut. Focused checks: `check-enclave.mjs` (7/7).
 
 Hardened inputs produced by the real `protectNativeBinary` from
 `vendor/bla/dist` (same `\0[BLA-NATIVE-SHIELD-V1]\0.dep-v0\0…` trailer BLA
@@ -74,6 +83,7 @@ emits) plus hand-built ELF64 / PE32+ / fat-Mach-O files. `gen.mjs` regenerates
 | case6-elf-double-trailer.elf | native | PASS | first indexOf wins → byte-exact original |
 | case6-elf-marker-mid-trailer.elf | native | PASS | embedded 2nd marker inside trailer also dropped (first-occurrence cut covers it) |
 | case6-elf-trailer-v2.elf | native | **UNDER-CLEAN** | `[BLA-NATIVE-SHIELD-V2]` unrecognized → 80 B trailer survives verbatim @0x880 |
+| pe-enclave-324.exe | native | PASS | real BLA 3.2.4 output: `.enclave` last-section decoy (vsize 0x83f @raw 0x600–0x1000) + 224B slack-plant in `.text` + 1.1MB `\0[BLA-NATIVE-SHIELD-V1]` trailer @0x1001. Section header zeroed, nsec 2→1, SizeOfImage 0x3000→0x2000, raw bytes dropped, slack re-zeroed → byte-exact vs pristine 1536B original |
 
 ## Notes
 

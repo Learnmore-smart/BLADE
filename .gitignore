@@ -40,3 +40,8 @@ test-fixtures/adversarial/intensity/*/cleaned/
 # large generated inputs (regenerable via in-dir gen scripts)
 test-fixtures/adversarial/model/g16-deep-stack.gguf
 test-fixtures/adversarial/wasm/e2e-bankrupt.wasm
+
+# Cloud sync client artifacts
+*.baiduyun.uploading.cfg
+*.baiduyun.downloading.cfg
+*.baiduyun.p.downloading

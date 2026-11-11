@@ -58,7 +58,9 @@ const STRONG_NAME = [
   /^_SELF_SEAL_TARGET\w*$/,
 ];
 const GENERIC_SUFFIX_NAME = /^[_$a-zA-Z][\w$]*_[0-9a-f]{3,4}$/;
-const RUNTIME_MARKERS = /_shadowVault_|decorative-deception-signal|__REA_CDP_GUARD|Frida-Interlock|frida-attestation/;
+// 3.2.4: the shadow-vault object lost its honest labels — classification/
+// securityBoundary strings became protocolVersion/attestationState/transport.
+const RUNTIME_MARKERS = /_shadowVault_|decorative-deception-signal|__REA_CDP_GUARD|Frida-Interlock|frida-attestation|RING0_SEALED|AF_VSOCK_RING0|HARDWARE_ENCLAVE_DELEGATED|attestationState/;
 
 // Blank out comments, string/template literals and regex literals so marker
 // detection only sees code positions (identifiers, keywords). Marker-shaped
@@ -124,7 +126,7 @@ export function looksBlaHardened(source) {
   let hits = 0;
   if (/_interlockSafetyCorpus_|_deriveContainmentCorpusDigest_/.test(masked)) hits++;
   if (/obligationFlood_|scc_\w+_c\d+n\d+|labyrinthDispatch_/.test(masked)) hits++;
-  if (/decorative-deception-signal|_shadowVault_|state_diff_frontier_/.test(masked)) hits++;
+  if (/decorative-deception-signal|_shadowVault_|state_diff_frontier_|attestationState|enclaveCid/.test(masked)) hits++;
   if (/readSplitShare_[0-9a-f]{4}|stepShadowHeap\w*_\w{3,4}\s*\(/.test(masked)) hits++;
   if (/\bvoid\s*\[/.test(masked)) hits++;
   if (hits >= 2) return true;
@@ -201,6 +203,171 @@ function collectRefs(node, refs = new Set()) {
   return;
 }
 
+// Generic recursive AST walk (no scope, no traversal state) — shape checks only.
+function walkJsNodes(node, cb) {
+  if (!node || typeof node !== "object") return;
+  if (Array.isArray(node)) { for (const n of node) walkJsNodes(n, cb); return; }
+  if (typeof node.type !== "string") return;
+  cb(node);
+  for (const k of Object.keys(node)) {
+    if (k === "type" || k === "loc" || k === "start" || k === "end" ||
+        k === "leadingComments" || k === "trailingComments" || k === "innerComments" ||
+        k === "extra") continue;
+    walkJsNodes(node[k], cb);
+  }
+}
+const unparen = (n) => { while (n && n.type === "ParenthesizedExpression") n = n.expression; return n; };
+
+// ---- BLA 3.2.4 ASAR main-JS sidecar preamble ----
+// `(function(){ var __expected="<64-hex>"; var __blaAsarSidecarDigest=0;
+//   try { require crypto/fs/path; hash entryLabel + sidecar reads; compare or
+//   soft-fold } catch {...} return __blaAsarSidecarDigest; })();`
+// Strip only when the marker binding or BOTH shape cues are present — a plain
+// user IIFE that hashes files stays.
+function isAsarSidecarPreamble(stmt) {
+  if (stmt.type !== "ExpressionStatement") return false;
+  const e = unparen(stmt.expression);
+  if (e?.type !== "CallExpression") return false;
+  const callee = unparen(e.callee);
+  if (!callee || (callee.type !== "FunctionExpression" && callee.type !== "ArrowFunctionExpression")) return false;
+  let marker = false, mismatch = false, createHash = false, readFileSync = false;
+  walkJsNodes(callee.body, (n) => {
+    if (n.type === "Identifier" && /^__bla\w*SidecarDigest$/.test(n.name)) marker = true;
+    else if (n.type === "StringLiteral" && n.value === "integrity binding mismatch") mismatch = true;
+    else if (n.type === "Identifier" && (n.name === "createHash" || n.name === "readFileSync")) {
+      if (n.name === "createHash") createHash = true; else readFileSync = true;
+    } else if (n.type === "MemberExpression" && !n.computed && n.property.type === "Identifier") {
+      if (n.property.name === "createHash") createHash = true;
+      if (n.property.name === "readFileSync") readFileSync = true;
+    }
+  });
+  return marker || (mismatch && createHash && readFileSync);
+}
+
+// ---- BLA self-seal measure function ----
+// `function <measureIntegrityXyz_ab12>() { var digest=0; try {
+//   var _c=require("node:crypto"); var _fs=require("node:fs"); var _path=require("node:path");
+//   var h=_c.createHash("sha256"); var selfPath=(typeof __filename==="string"?__filename:null);
+//   ... _fs.readFileSync(selfPath) ... ["integrity check failed" rethrow / hard-fail]
+//   ... optional selfExpected 64-hex canonicalization ...
+//   digest=parseInt(hex.slice(0,8),16)>>>0; } catch { ... } return digest>>>0; }`
+// Unambiguous only when require(crypto) + readFileSync + the "integrity check
+// failed" literal + a self-measure cue co-occur inside one function body.
+function isSelfSealMeasureFn(stmt) {
+  if (stmt.type !== "FunctionDeclaration" || !stmt.id || !stmt.body) return false;
+  let reqCrypto = false, readFileSync = false, icf = false, selfCue = false;
+  walkJsNodes(stmt.body, (n) => {
+    switch (n.type) {
+      case "CallExpression":
+        if (n.callee.type === "Identifier" && n.callee.name === "require" &&
+            n.arguments.length === 1 && n.arguments[0].type === "StringLiteral" &&
+            /^(?:node:)?crypto$/.test(n.arguments[0].value)) reqCrypto = true;
+        if (n.callee.type === "Identifier" && n.callee.name === "readFileSync") readFileSync = true;
+        if (n.callee.type === "MemberExpression" && !n.callee.computed &&
+            n.callee.property.type === "Identifier" && n.callee.property.name === "readFileSync") readFileSync = true;
+        return;
+      case "StringLiteral":
+        if (n.value === "integrity check failed") icf = true;
+        else if (/^[0-9a-f]{64}$/.test(n.value)) selfCue = true;
+        return;
+      case "RegExpLiteral":
+        if (/\{64\}/.test(n.pattern) && /0-9a-f/i.test(n.pattern)) selfCue = true;
+        return;
+      case "Identifier":
+        // fixed (non-PRNG'd) locals in emitMeasureFunction
+        if (/^self(?:Path|Buf|Expected|Digest|Hex)$/.test(n.name)) selfCue = true;
+        return;
+      default: return;
+    }
+  });
+  return reqCrypto && readFileSync && icf && selfCue;
+}
+
+// Collect CallExpression callee Identifier names inside an expression.
+function callCalleeNames(node, out = []) {
+  walkJsNodes(node, (n) => {
+    if (n.type === "CallExpression" && n.callee.type === "Identifier") out.push(n.callee.name);
+  });
+  return out;
+}
+
+// ---- Seed-decl digest check ----
+// The opaque seed ternary test is `D(0) === N`, emitted bare (3.2.4 default),
+// wrapped `[fns].every(_f => typeof _f === "function") && (D(0) === N)`
+// (decoy entanglement), or `typeof D === "function" && D(0) === N` (older).
+// Find the === comparison with a call-on-identifier on either side, wherever
+// it sits inside the test tree.
+function findSeedDigestCheck(test, ev0, depth = 0) {
+  if (!test || depth > 8) return null;
+  const t0 = unparen(test);
+  if (t0.type === "BinaryExpression" && (t0.operator === "===" || t0.operator === "==")) {
+    for (const [callSide, litSide] of [[t0.left, t0.right], [t0.right, t0.left]]) {
+      const c = unparen(callSide);
+      if (c?.type === "CallExpression" && c.callee?.type === "Identifier") {
+        const expected = ev0(litSide);
+        if (expected.known) return { name: c.callee.name, expected: expected.value };
+      }
+    }
+    return null;
+  }
+  if (t0.type === "LogicalExpression") {
+    return findSeedDigestCheck(t0.left, ev0, depth + 1) ?? findSeedDigestCheck(t0.right, ev0, depth + 1);
+  }
+  return null;
+}
+
+// ---- encryptStrings runtime stub ----
+// Both emitted variants share one skeleton:
+//   var T=[<num-array>, ...]            ("csv".split(",").map(Number) rows, or literal arrays)
+//   var K=<num-array>
+//   function F(i){ var e=T[i],k=K,kl=k.length,o=new Uint8Array(e.length);
+//     for(var j=0;j<e.length;j++){ var kb=...,ks=...; o[j]=<xor-expr>&255; }
+//     return Buffer/TextDecoder/fromCharCode decode; }
+//   var _blaS=F;var _blaT=T;
+// Old loop: o[j]=(e[j]^k[j%k.length])&255
+// New (3.2.4): kb/ks derive — o[j]=(e[j]^(kb^((ks+i*73+j*19)&255)))&255
+// We don't hardcode the formula: the emitted RHS is pure arithmetic over
+// {i,j,e,k,kl,kb,ks}, so we evaluate it per index with those names bound.
+function numArrayInit(init) {
+  if (!init) return null;
+  if (init.type === "ArrayExpression") {
+    const out = [];
+    for (const el of init.elements) {
+      if (el?.type !== "NumericLiteral" || !Number.isFinite(el.value)) return null;
+      out.push(el.value);
+    }
+    return out;
+  }
+  // "<csv>".split(",").map(Number)
+  if (init.type === "CallExpression" && init.arguments.length === 1 &&
+      init.callee.type === "MemberExpression" && !init.callee.computed &&
+      init.callee.property.type === "Identifier" && init.callee.property.name === "map" &&
+      init.arguments[0].type === "Identifier" && init.arguments[0].name === "Number") {
+    const inner = init.callee.object;
+    if (inner?.type === "CallExpression" && inner.arguments.length === 1 &&
+        inner.callee.type === "MemberExpression" && !inner.callee.computed &&
+        inner.callee.property.type === "Identifier" && inner.callee.property.name === "split" &&
+        inner.arguments[0].type === "StringLiteral" && inner.callee.object.type === "StringLiteral") {
+      const sep = inner.arguments[0].value;
+      const raw = inner.callee.object.value;
+      if (raw === "") return [];
+      const out = raw.split(sep).map((p) => Number(p));
+      if (out.every((n) => Number.isFinite(n))) return out;
+    }
+  }
+  return null;
+}
+function numTableInit(init) {
+  if (init?.type !== "ArrayExpression" || init.elements.length === 0) return null;
+  const rows = [];
+  for (const el of init.elements) {
+    const r = numArrayInit(el);
+    if (!r) return null;
+    rows.push(r);
+  }
+  return rows;
+}
+
 export function dehardenJs(source, { filename = "input.js" } = {}) {
   const report = {
     filename,
@@ -214,6 +381,10 @@ export function dehardenJs(source, { filename = "input.js" } = {}) {
     removedTopLevel: 0,
     injectedFunctionsRemoved: 0,
     prologueCallsRemoved: 0,
+    asarPreambleRemoved: 0,
+    selfSealFunctionsRemoved: 0,
+    selfSealBindingsRemoved: 0,
+    decryptedStrings: 0,
     renamedBindings: [],
     residualStatements: [],
     recoveredStrings: new Set(),
@@ -223,7 +394,15 @@ export function dehardenJs(source, { filename = "input.js" } = {}) {
     bytesIn: source.length,
     bytesOut: 0,
   };
-  if (!report.hardened) return { code: source, report };
+  // Emission-shape prefilters: BLA transforms that carry no corpus/seed markers
+  // (self-seal snippet, ASAR sidecar preamble, encrypt-strings stub) still
+  // deserve the AST passes — parse when their unambiguous literal surface is
+  // present even if the structural gate stays false.
+  const mayPreamble = source.includes("__blaAsarSidecarDigest") || source.includes("integrity binding mismatch");
+  const maySelfSeal = source.includes("integrity check failed") && source.includes("readFileSync");
+  const mayStringStub = source.includes("Uint8Array") &&
+    (source.includes(".map(Number)") || source.includes("Buffer.from") || source.includes("TextDecoder"));
+  if (!report.hardened && !mayPreamble && !maySelfSeal && !mayStringStub) return { code: source, report };
 
   const ast = parse(source, {
     sourceType: "unambiguous",
@@ -235,11 +414,296 @@ export function dehardenJs(source, { filename = "input.js" } = {}) {
   const eval0 = makeEvaluator(new Map());
   const ev0 = eval0.ev;
 
+  // ---- Pass -1: BLA-emission shape passes (pre-classification, so removed
+  // statements never reach the boundary logic). Shape-verified only — names
+  // are PRNG'd and never used for matching.
+  const preRemove = new Set();       // whole statements to drop
+  const preInjectedNames = new Set();// names to treat as injected downstream
+  let preChanged = false;
+  const finishEarly = () => {
+    // Non-hardened path: return the original source when nothing verified.
+    if (!preChanged && report.decryptedStrings === 0) return { code: source, report };
+    let code = generate(ast, { comments: true, compact: false }).code;
+    code = code
+      .split("\n")
+      .filter((l) => !/^\s*\/\/#?\s*sourceMappingURL=/.test(l))
+      .join("\n");
+    report.bytesOut = code.length;
+    report.recoveredStrings = [...report.recoveredStrings].sort();
+    return { code, report };
+  };
+
+  // (a) ASAR main-JS sidecar preamble IIFE (strip⇒fail binding check)
+  for (const stmt of body) {
+    if (isAsarSidecarPreamble(stmt)) {
+      preRemove.add(stmt);
+      report.asarPreambleRemoved++;
+    }
+  }
+
+  // (b) self-seal measure functions + their XOR-fold binding declarations
+  const sealFns = new Set();
+  for (const stmt of body) {
+    if (!preRemove.has(stmt) && isSelfSealMeasureFn(stmt)) {
+      sealFns.add(stmt.id.name);
+      preRemove.add(stmt);
+      report.selfSealFunctionsRemoved++;
+    }
+  }
+  const sealBindings = []; // {name, index} for restore-if-referenced
+  if (sealFns.size > 0) {
+    body.forEach((stmt, idx) => {
+      if (stmt.type !== "VariableDeclaration" || preRemove.has(stmt)) return;
+      const keptDecls = stmt.declarations.filter((d) => {
+        if (d.id?.type !== "Identifier" || !d.init) return true;
+        const callees = callCalleeNames(d.init);
+        // `var <b> = h1();` / `var <b> = (h1() ^ h2() ^ ...) >>> 0;`
+        if (callees.length > 0 && callees.every((n) => sealFns.has(n))) {
+          sealBindings.push({ name: d.id.name, index: idx });
+          report.selfSealBindingsRemoved++;
+          preChanged = true;
+          return false;
+        }
+        return true;
+      });
+      if (keptDecls.length !== stmt.declarations.length) {
+        stmt.declarations = keptDecls;
+        if (keptDecls.length === 0) preRemove.add(stmt);
+      }
+    });
+    for (const n of sealFns) preInjectedNames.add(n);
+  }
+
+  // (c) encryptStrings stub: verify shape, decode F(<literal>) call sites with
+  // the emitted expression evaluated faithfully, then drop T/K/F + _blaS/_blaT
+  // alias decls. Any call site that fails to decode keeps the whole stub.
+  const arraysByName = new Map(); // name -> {kind:"mask"|"table", values, stmt}
+  for (const stmt of body) {
+    if (stmt.type !== "VariableDeclaration" || preRemove.has(stmt)) continue;
+    for (const d of stmt.declarations) {
+      if (d.id?.type !== "Identifier" || !d.init) continue;
+      const table = numTableInit(d.init);
+      if (table && table.every((r) => r.length > 0)) {
+        arraysByName.set(d.id.name, { kind: "table", values: table });
+        continue;
+      }
+      const mask = numArrayInit(d.init);
+      if (mask && mask.length > 0) arraysByName.set(d.id.name, { kind: "mask", values: mask });
+    }
+  }
+  const matchDecryptStubFn = (stmt) => {
+    if (stmt.type !== "FunctionDeclaration" || !stmt.id || !stmt.body?.body) return null;
+    if (stmt.params.length !== 1 || stmt.params[0].type !== "Identifier") return null;
+    const param = stmt.params[0].name;
+    let forStmt = null, ret = null;
+    const topDecls = [];
+    for (const s of stmt.body.body) {
+      if (s.type === "VariableDeclaration") topDecls.push(...s.declarations);
+      else if (s.type === "ForStatement" && !forStmt) forStmt = s;
+      else if (s.type === "ReturnStatement" && !ret) ret = s;
+      else return null;
+    }
+    if (!forStmt || !ret || topDecls.length === 0) return null;
+    const retSrc = safeGen(ret.argument);
+    if (!/Buffer\.from|TextDecoder|fromCharCode/.test(retSrc)) return null;
+    let eName = null, tableName = null, keyName = null, outName = null;
+    for (const d of topDecls) {
+      if (d.id?.type !== "Identifier" || !d.init) continue;
+      if (!eName && d.init.type === "MemberExpression" && d.init.computed &&
+          d.init.object.type === "Identifier" && arraysByName.get(d.init.object.name)?.kind === "table" &&
+          d.init.property.type === "Identifier" && d.init.property.name === param) {
+        eName = d.id.name; tableName = d.init.object.name; continue;
+      }
+      if (!keyName && d.init.type === "Identifier" && arraysByName.get(d.init.name)?.kind === "mask") {
+        keyName = d.init.name; continue;
+      }
+      if (!outName && d.init.type === "NewExpression" &&
+          d.init.callee.type === "Identifier" && d.init.callee.name === "Uint8Array") {
+        outName = d.id.name; continue;
+      }
+    }
+    if (!eName || !tableName || !keyName || !outName) return null;
+    const assigns = [];
+    walkJsNodes(forStmt.body, (n) => {
+      if (n.type === "AssignmentExpression" && n.operator === "=" &&
+          n.left.type === "MemberExpression" && n.left.computed &&
+          n.left.object.type === "Identifier" && n.left.object.name === outName) assigns.push(n);
+    });
+    if (assigns.length !== 1) return null;
+    const loopDecls = [];
+    for (const s of (forStmt.body.type === "BlockStatement" ? forStmt.body.body : [forStmt.body])) {
+      if (s.type === "VariableDeclaration") loopDecls.push(...s.declarations);
+    }
+    const retKind = /fromCharCode/.test(retSrc) && !/Buffer\.from|TextDecoder/.test(retSrc) ? "latin1" : "utf8";
+    return { fnName: stmt.id.name, stmt, param, eName, tableName, keyName, outName,
+             topDecls, loopDecls, assign: assigns[0], forStmt, retKind, decoded: 0, failed: false };
+  };
+  const stubForRange = (forStmt, env) => {
+    const init = forStmt.init;
+    if (init?.type !== "VariableDeclaration" || init.declarations.length !== 1) return null;
+    const vd = init.declarations[0];
+    if (vd.id?.type !== "Identifier") return null;
+    const varName = vd.id.name;
+    const start = makeEvaluator(env).ev(vd.init);
+    if (!start.known || typeof start.value !== "number") return null;
+    const test = forStmt.test;
+    if (test?.type !== "BinaryExpression" || (test.operator !== "<" && test.operator !== "<=")) return null;
+    if (test.left.type !== "Identifier" || test.left.name !== varName) return null;
+    const bEnv = new Map(env); bEnv.set(varName, start.value);
+    const bound = makeEvaluator(bEnv).ev(test.right);
+    if (!bound.known || typeof bound.value !== "number") return null;
+    const end = test.operator === "<" ? bound.value : bound.value + 1;
+    const upd = forStmt.update;
+    let step = null;
+    if (upd?.type === "UpdateExpression" && upd.argument.type === "Identifier" && upd.argument.name === varName) {
+      step = upd.operator === "++" ? 1 : upd.operator === "--" ? -1 : null;
+    } else if (upd?.type === "AssignmentExpression" && upd.left.type === "Identifier" && upd.left.name === varName) {
+      if (upd.operator === "+=" || upd.operator === "-=") {
+        const r = makeEvaluator(env).ev(upd.right);
+        if (r.known && typeof r.value === "number") step = upd.operator === "+=" ? r.value : -r.value;
+      } else if (upd.operator === "=" && upd.right.type === "BinaryExpression" &&
+                 (upd.right.operator === "+" || upd.right.operator === "-") &&
+                 upd.right.left.type === "Identifier" && upd.right.left.name === varName) {
+        const r = makeEvaluator(env).ev(upd.right.right);
+        if (r.known && typeof r.value === "number") step = upd.right.operator === "+" ? r.value : -r.value;
+      }
+    }
+    if (!step) return null;
+    return { varName, start: start.value, end, step };
+  };
+  const decodeStubIndex = (info, idx) => {
+    try {
+      const env = new Map([[info.param, idx]]);
+      env.set(info.tableName, arraysByName.get(info.tableName).values);
+      env.set(info.keyName, arraysByName.get(info.keyName).values);
+      let row = null;
+      for (const d of info.topDecls) {
+        if (d.id.type !== "Identifier") return null;
+        if (!d.init) { env.set(d.id.name, undefined); continue; }
+        if (d.init.type === "NewExpression") { env.set(d.id.name, new Uint8Array(0)); continue; }
+        const r = makeEvaluator(env).ev(d.init);
+        if (!r.known) return null;
+        env.set(d.id.name, r.value);
+        if (d.id.name === info.eName) row = r.value;
+      }
+      if (!Array.isArray(row)) return null;
+      const range = stubForRange(info.forStmt, env);
+      if (!range || Math.abs(range.end - range.start) > 1e6) return null;
+      const out = new Array(row.length).fill(0);
+      for (let j = range.start; range.step > 0 ? j < range.end : j > range.end; j += range.step) {
+        const jenv = new Map(env); jenv.set(range.varName, j);
+        const jev = makeEvaluator(jenv).ev;
+        for (const d of info.loopDecls) {
+          if (d.id.type !== "Identifier" || !d.init) return null;
+          const r = jev(d.init);
+          if (!r.known) return null;
+          jenv.set(d.id.name, r.value);
+        }
+        const li = jev(info.assign.left.property);
+        const rv = jev(info.assign.right);
+        if (!li.known || !rv.known || typeof rv.value !== "number" || !Number.isInteger(li.value)) return null;
+        if (li.value >= 0 && li.value < out.length) out[li.value] = rv.value & 0xff;
+      }
+      const bytes = Uint8Array.from(out);
+      return info.retKind === "utf8" ? Buffer.from(bytes).toString("utf8") : String.fromCharCode(...bytes);
+    } catch { return null; }
+  };
+  if (arraysByName.size > 0) {
+    const stubs = new Map();
+    for (const stmt of body) {
+      if (preRemove.has(stmt)) continue;
+      const info = matchDecryptStubFn(stmt);
+      if (info) stubs.set(info.fnName, info);
+    }
+    if (stubs.size > 0) {
+      // `_blaS`/`_blaT`-style aliases: `var X = <stubName>` also accept calls
+      const callTarget = new Map([...stubs.keys()].map((n) => [n, stubs.get(n)]));
+      for (const stmt of body) {
+        if (stmt.type !== "VariableDeclaration" || preRemove.has(stmt)) continue;
+        for (const d of stmt.declarations) {
+          if (d.id?.type === "Identifier" && d.init?.type === "Identifier" && callTarget.has(d.init.name)) {
+            callTarget.set(d.id.name, callTarget.get(d.init.name));
+            (stubs.get(d.init.name).aliases ??= new Set()).add(d.id.name);
+          }
+        }
+      }
+      traverse(ast, {
+        CallExpression(path) {
+          const c = path.node.callee;
+          if (c.type !== "Identifier" || !callTarget.has(c.name)) return;
+          const info = callTarget.get(c.name);
+          const arg = path.node.arguments.length === 1 ? path.node.arguments[0] : null;
+          const decoded = arg?.type === "NumericLiteral" && Number.isInteger(arg.value)
+            ? decodeStubIndex(info, arg.value) : null;
+          if (decoded === null) { info.failed = true; return; }
+          path.replaceWith(t.stringLiteral(decoded));
+          info.decoded++;
+          report.decryptedStrings++;
+          preChanged = true;
+        },
+      });
+      const dead = [...stubs.values()].filter((i) => !i.failed);
+      if (dead.length > 0) {
+        const deadNames = new Set();
+        for (const i of dead) {
+          deadNames.add(i.fnName); deadNames.add(i.tableName); deadNames.add(i.keyName);
+          for (const a of i.aliases ?? []) deadNames.add(a);
+          preRemove.add(i.stmt);
+          preChanged = true;
+        }
+        // Fixpoint: also drop `var X = <deadName>` alias declarators (the stub's
+        // `var _blaS=F;var _blaT=T;` markers) — a kept alias would dangle once
+        // its target is gone.
+        let pruned = true;
+        while (pruned) {
+          pruned = false;
+          for (const stmt of body) {
+            if (stmt.type !== "VariableDeclaration" || preRemove.has(stmt)) continue;
+            const keptDecls = stmt.declarations.filter((d) => {
+              if (d.id?.type !== "Identifier") return true;
+              const dead = deadNames.has(d.id.name) ||
+                (d.init?.type === "Identifier" && deadNames.has(d.init.name));
+              if (dead) deadNames.add(d.id.name);
+              return !dead;
+            });
+            if (keptDecls.length !== stmt.declarations.length) {
+              stmt.declarations = keptDecls;
+              preChanged = true; pruned = true;
+              if (keptDecls.length === 0) preRemove.add(stmt);
+            }
+          }
+        }
+        for (const n of deadNames) preInjectedNames.add(n);
+      }
+    }
+  }
+
+  // apply the pre-pass removals, then rebind self-seal bindings still referenced
+  // as `var <b> = 0;` — BLA's own soft-skip (digest=0) semantics when a fold
+  // site in surviving code still reads it.
+  if (preRemove.size > 0) {
+    for (let i = body.length - 1; i >= 0; i--) {
+      if (preRemove.has(body[i])) { body.splice(i, 1); preChanged = true; }
+    }
+    for (const b of sealBindings) {
+      const refs = new Set();
+      for (const s of body) walkJsNodes(s, (n) => { if (n.type === "Identifier") refs.add(n.name); });
+      if (refs.has(b.name)) {
+        body.splice(Math.min(b.index, body.length), 0,
+          t.variableDeclaration("var", [t.variableDeclarator(t.identifier(b.name), t.numericLiteral(0))]));
+        preInjectedNames.add(b.name);
+        preChanged = true;
+      }
+    }
+  }
+
+  if (!report.hardened) return finishEarly();
+
   // ---- Pass 0: harvest injected-name ground truth from `void [...]`/`void x`
   // Collect candidate anchor names now; only promote them to injectedNames
   // once a corpus/seed is found in Pass 1 — a marker-comment trap file with
   // a plain `void [a, b]` must not mark real names for deletion.
-  const injectedNames = new Set();
+  const injectedNames = new Set(preInjectedNames);
   const voidNames = new Set();
   for (const stmt of body) {
     if (stmt.type !== "ExpressionStatement") continue;
@@ -277,19 +741,13 @@ export function dehardenJs(source, { filename = "input.js" } = {}) {
       if (d.id?.type !== "Identifier" || d.init?.type !== "BinaryExpression" ||
           (d.init.operator !== "|" && d.init.operator !== "+")) continue;
       const rhs = d.init.right;
-      if (rhs.type !== "ConditionalExpression" || rhs.test.type !== "LogicalExpression") continue;
-      // test: typeof D === "function" && D(0) === N
-      const [condA, condB] = [rhs.test.left, rhs.test.right];
-      const mA = condA.type === "BinaryExpression" && condA.operator === "===" &&
-        condA.left.type === "UnaryExpression" && condA.left.operator === "typeof" &&
-        condA.left.argument.type === "Identifier" ? condA.left.argument.name : null;
-      const mB = condB.type === "BinaryExpression" && (condB.operator === "===" || condB.operator === "==") &&
-        condB.left.type === "CallExpression" && condB.left.callee.type === "Identifier"
-        ? { name: condB.left.callee.name, expected: ev0(condB.right) } : null;
-      const digestName = mA ?? mB?.name;
-      if (digestName && digestRe.test(digestName) && mB?.expected?.known) {
+      if (rhs.type !== "ConditionalExpression") continue;
+      // test: bare `D(0) === N` (3.2.4 default), `[fns].every(...) && (D(0) === N)`
+      // (decoy entanglement), or `typeof D === "function" && D(0) === N` (old).
+      const check = findSeedDigestCheck(rhs.test, ev0);
+      if (check && digestRe.test(check.name)) {
         seedName = d.id.name;
-        seedExpected = mB.expected.value;
+        seedExpected = check.expected;
         const base = ev0(d.init.left);
         if (d.init.operator === "+") report.seedShapePerturbed = true;
         let bit0 = corpusEntries && computeContainmentCorpusDigest(corpusEntries, 0) === seedExpected ? 1 : 0;
@@ -494,7 +952,7 @@ export function dehardenJs(source, { filename = "input.js" } = {}) {
   // Families real code never uses — hard evidence; call sites get swept.
   const HARD_FAMILY =
     /^(stepShadowHeap|readSplitShare|shadowHeap|runtimeSeed|obligationFlood|labyrinthDispatch|scc_|diffFrontier|aliasedBufferIllusion|cdpShape|fridaCapture|fridaRealmRing|regexSearchMagnet|tokenSink|_shadowVault|_interlockSafetyCorpus|_deriveContainmentCorpusDigest|_runtimeState|_DISTRIBUTED_ASL3|_SELF_SEAL_TARGET)/;
-  const VOCAB_TEXT = /shadowHeap|shadowVault|enclave_|tpm2_pcr|SYMBOL_OFFSET_MANIFEST|EVIDENCE_CHAIN|build_digest=ev_|bla_canary_|PROTECTED_CANARY|CANARY_CREDENTIAL|HONEYPOT|enclave\.internal/;
+  const VOCAB_TEXT = /shadowHeap|shadowVault|enclave_|tpm2_pcr|SYMBOL_OFFSET_MANIFEST|EVIDENCE_CHAIN|build_digest=ev_|bla_canary_|PROTECTED_CANARY|CANARY_CREDENTIAL|HONEYPOT|enclave\.internal|RING0_SEALED|AF_VSOCK_RING0|HARDWARE_ENCLAVE_DELEGATED|attestationState/;
   const suffixDeclNames = new Set();
   for (const s of body2) for (const n of stmtDeclaredNames(s)) if (matchesGeneric(n)) suffixDeclNames.add(n);
   const declsInjectedMachinery = (stmt) => {
@@ -504,6 +962,9 @@ export function dehardenJs(source, { filename = "input.js" } = {}) {
     // BLA's fixed decoy-basename tables: <basename>_<hex> names are emitted
     // verbatim by its generators — a real decl colliding is rescued later.
     if (names.some(isDecoyName)) return true;
+    // HARD_FAMILY names (tokenSink/fridaRealmRing/_runtimeState/…) are BLA's
+    // own generator vocabulary — same unambiguous evidence as isDecoyName.
+    if (names.some((n) => GENERIC_SUFFIX_NAME.test(n) && HARD_FAMILY.test(n))) return true;
     // Leaf decoy blobs: generic-shaped name + BLA-invented payload vocabulary
     // (dedicated tokens alone, or >=2 generic enclave-family tokens).
     const text = safeGen(stmt);

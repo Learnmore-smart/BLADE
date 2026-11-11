@@ -256,7 +256,7 @@ No. Verification asserts behavioral equivalence: exports, IPC handlers, channel 
 For BLA's dominant append-only trailer strategy — yes, verified across 16 formats. Rebuilt containers (ZIP/APK/ASAR/WASM) are member/content-exact; in-place mutations get canonical/inferred grades.
 
 **Will it break on the next BLA version?**
-Signatures are keyed to `bla-agents@3.2.2` but defense-in-depth exists: `scoreStructuralAnomaly` flags unknown floods, `detectOpaqueSeedVariants` catches drifted predicate shapes, keep+flag defaults mean graceful degradation, not silent passthrough of poison.
+Signatures are keyed to `bla-agents@3.2.4` (3.2.2 and earlier outputs remain supported) but defense-in-depth exists: `scoreStructuralAnomaly` flags unknown floods, `detectOpaqueSeedVariants` catches drifted predicate shapes, keep+flag defaults mean graceful degradation, not silent passthrough of poison.
 
 **Can I run it on a whole directory?**
 Point the CLI at a file; for directories, script over the tree (the CLI is deliberately single-artifact deterministic).
