@@ -1,0 +1,2 @@
+AB
+this is text with crlf at offset 2..3 — BLA routes this to pyc

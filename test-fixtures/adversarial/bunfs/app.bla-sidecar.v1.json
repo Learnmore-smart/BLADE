@@ -1,0 +1,12 @@
+{
+  "schema": "bla-sidecar-entangle/v1",
+  "kind": "bun-companion-note",
+  "digest": "fc61b03a47040c6c79c3404aacb8975eabc0eb6af00e9700a3a2b29002f5a83b",
+  "seedTag": "blade-fixture",
+  "entryPath": "real-bun",
+  "sidecarPaths": [
+    "real-bun.bunfs-snapshot"
+  ],
+  "softFold": false,
+  "mode": "sidecars"
+}

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd" []>
+<plist version="1.0">
+<dict>
+  <key>Level1</key>
+  <array>
+    <dict>
+      <key>L2Arr</key>
+      <array>
+        <dict>
+          <key>Deep</key>
+          <string>real</string>
+          <key>BLACanaryCredential_0</key>
+          <string>deep canary</string>
+        </dict>
+      </array>
+      <key>BLATransportEndpoint_0</key>
+      <string>nested transport</string>
+    </dict>
+  </array>
+  <key>BLAEnclaveVsockDelegationCID</key>
+  <integer>16</integer>
+</dict>
+</plist>

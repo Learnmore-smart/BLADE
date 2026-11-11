@@ -1,0 +1,38 @@
+{
+  "name": "blade",
+  "version": "1.0.0",
+  "description": "Bypass LLM Agent Defense Engine — adaptive de-hardening of bla-agents protected artifacts so analyzers (REA, decompilers, LLM recon pipelines) see real logic instead of decoys",
+  "main": "src/cli.mjs",
+  "bin": {
+    "blade": "src/cli.mjs"
+  },
+  "scripts": {
+    "test": "node scripts/verify.mjs",
+    "fixtures": "node scripts/make-fixtures.mjs",
+    "blade": "node src/cli.mjs"
+  },
+  "keywords": [
+    "reverse-engineering",
+    "deobfuscation",
+    "dehardening",
+    "security",
+    "binary-analysis",
+    "bla",
+    "rea",
+    "electron",
+    "wasm",
+    "static-analysis"
+  ],
+  "author": "BLADE contributors",
+  "license": "MIT",
+  "type": "commonjs",
+  "engines": {
+    "node": "^22.23.4 || >=24.0.0"
+  },
+  "dependencies": {
+    "@babel/generator": "^8.1.0",
+    "@babel/parser": "^8.1.0",
+    "@babel/traverse": "^8.1.0",
+    "@babel/types": "^8.1.0"
+  }
+}

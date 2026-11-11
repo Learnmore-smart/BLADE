@@ -1,0 +1,42 @@
+# dependencies + vendored upstreams (see README for setup)
+node_modules/
+vendor/
+
+# generated fixture corpora — regenerate per README quick start
+test-fixtures/plain/
+test-fixtures/hardened/
+test-fixtures/plain-app/
+test-fixtures/cleaned/
+test-fixtures/cleaned-app/
+test-fixtures/hardened-app/
+test-fixtures/hardened-app-*/
+
+# harness outputs
+**/out/
+**/cleaned/
+**/_out/
+**/_reports/
+test-fixtures/adversarial/asar/built/
+**/*.cleaned.*
+**/results.json
+**/run-output.txt
+**/.scrubAsar-under-test.mjs
+
+# emitted counter-shield artifacts
+*.blade-counter.js
+*.blade-cdp-notes.md
+*.blade-tee-stub.js
+
+# local tool configs / scratch
+.blarc
+*.tmp.mjs
+t-*.mjs
+NUL
+
+# per-intensity regenerated corpora
+test-fixtures/adversarial/intensity/*/hardened/
+test-fixtures/adversarial/intensity/*/cleaned/
+
+# large generated inputs (regenerable via in-dir gen scripts)
+test-fixtures/adversarial/model/g16-deep-stack.gguf
+test-fixtures/adversarial/wasm/e2e-bankrupt.wasm

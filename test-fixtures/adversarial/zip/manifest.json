@@ -1,0 +1,104 @@
+{
+  "base-clean.apk": {
+    "expectPassthrough": true
+  },
+  "base-bla-hardened.apk": {
+    "realBla": true,
+    "decoysInjected": 12,
+    "membersHardened": 2
+  },
+  "base-bla-hardened.zip": {
+    "realBla": true
+  },
+  "case1a-clean-legit-enclave.apk": {
+    "note": "clean archive, legit names under decoy patterns"
+  },
+  "case1b-mixed.apk": {},
+  "case2-descriptor.apk": {},
+  "case3-zip64.apk": {
+    "expectThrow": true
+  },
+  "case3b-comments.zip": {},
+  "case3c-dir-first.zip": {},
+  "case3d-fake-eocd-passthrough.zip": {
+    "evasion": true
+  },
+  "case3e-fake-eocd-poison.zip": {
+    "evasion": true,
+    "poison": true
+  },
+  "case3f-trailing-garbage.zip": {
+    "evasion": true
+  },
+  "case4-axml.apk": {},
+  "case5-nested.apk": {},
+  "case6-signed.apk": {
+    "signingBlock": true
+  },
+  "case6b-signed-altcd.apk": {
+    "signingBlock": true,
+    "evasion": true
+  },
+  "case7-alignment.apk": {
+    "alignment": true
+  },
+  "case8-bzip2-member.zip": {},
+  "case9-marker-collision.apk": {},
+  "case9b-jsthrow.apk": {
+    "expectThrow": true
+  },
+  "case10-dualname.zip": {
+    "evasion": true
+  },
+  "case10b-nlen-lie.zip": {
+    "corruption": true,
+    "expectedData": {
+      "type": "Buffer",
+      "data": [
+        78,
+        79,
+        84,
+        69,
+        45,
+        67,
+        79,
+        78,
+        84,
+        69,
+        78,
+        84,
+        83,
+        45,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57
+      ]
+    }
+  },
+  "case11-sfx.apk": {
+    "sfx": true
+  },
+  "case12-utf8-names.zip": {},
+  "case13-zipbomb-member.zip": {},
+  "case14-hardened-js-member.zip": {
+    "jsHardened": true,
+    "jsOriginal": "\"use strict\";\nfunction computePrice(items, tax) { let t = 0; for (const i of items) t += i.price * i.qty; return t * (1 + tax); }\nfunction renderCart(c) { return c.items.map((i) => i.sku + \":\" + i.qty).join(\",\"); }\nmodule.exports = { computePrice, renderCart };\n"
+  },
+  "case16-tinymarker.zip": {
+    "expectThrow": true
+  },
+  "case16b-textmarker.zip": {},
+  "case17-corrupt-hardened.zip": {
+    "evasion": true
+  },
+  "case15-clean-exotic.zip": {
+    "expectPassthrough": true
+  }
+}

@@ -1,0 +1,533 @@
+## fp-B0xy.beam
+  in=144B out=144B hardened=false dropped(chunks=0 atoms=0) expect=PASS
+  in  0x000c chunk "AtU8" size=18
+  in  0x0028 chunk "Code" size=24
+  in  0x0048 chunk "B0xy" size=26
+  in  0x006c chunk "ExpT" size=16
+  in  0x0084 chunk "StrT" size=4
+  out 0x000c chunk "AtU8" size=18
+  out 0x0028 chunk "Code" size=24
+  out 0x0048 chunk "B0xy" size=26
+  out 0x006c chunk "ExpT" size=16
+  out 0x0084 chunk "StrT" size=4
+  out 0x0014 AtU8: count=3 compact=false parse=ok
+      atom[1] @0x0019 "demo"
+      atom[2] @0x001e "run"
+      atom[3] @0x0022 "stop"
+  ref-ok : Code operand @0x0045 atom-index 1 -> "demo"
+  ref-ok : Code operand @0x0046 atom-index 2 -> "run"
+  ref-ok : ExpT entry[0] @0x0078 atom-index 2 -> "run"
+  VERDICT: PASS
+## fp-boundary-names.beam
+  in=268B out=268B hardened=false dropped(chunks=0 atoms=0) expect=PASS
+  in  0x000c chunk "AtU8" size=8
+  in  0x001c chunk "B0xy" size=5
+  in  0x002c chunk "Bzzz" size=5
+  in  0x003c chunk "Bl00" size=5
+  in  0x004c chunk "Bla9" size=5
+  in  0x005c chunk "Blx0" size=5
+  in  0x006c chunk "B1A2" size=23
+  in  0x008c chunk "BLA9" size=24
+  in  0x00ac chunk "B_xy" size=22
+  in  0x00cc chunk "b0xy" size=23
+  in  0x00ec chunk "Code" size=21
+  out 0x000c chunk "AtU8" size=8
+  out 0x001c chunk "B0xy" size=5
+  out 0x002c chunk "Bzzz" size=5
+  out 0x003c chunk "Bl00" size=5
+  out 0x004c chunk "Bla9" size=5
+  out 0x005c chunk "Blx0" size=5
+  out 0x006c chunk "B1A2" size=23
+  out 0x008c chunk "BLA9" size=24
+  out 0x00ac chunk "B_xy" size=22
+  out 0x00cc chunk "b0xy" size=23
+  out 0x00ec chunk "Code" size=21
+  out 0x0014 AtU8: count=2 compact=false parse=ok
+      atom[1] @0x0019 "m"
+      atom[2] @0x001b "f"
+  VERDICT: PASS
+## fp-Blah-decoyless.beam
+  in=96B out=96B hardened=false dropped(chunks=0 atoms=0) expect=PASS
+  in  0x000c chunk "AtU8" size=6
+  in  0x001c chunk "Blah" size=28
+  in  0x0040 chunk "Code" size=21
+  out 0x000c chunk "AtU8" size=6
+  out 0x001c chunk "Blah" size=28
+  out 0x0040 chunk "Code" size=21
+  out 0x0014 AtU8: count=1 compact=false parse=ok
+      atom[1] @0x0019 "m"
+  VERDICT: PASS
+## fp-B0xy-marker.beam
+  in=208B out=208B hardened=true dropped(chunks=0 atoms=2) expect=PASS
+  in  0x000c chunk "AtU8" size=8
+  in  0x001c chunk "B0xy" size=54
+  in  0x005c chunk "Bdoc" size=51
+  in  0x0098 chunk "Code" size=21
+  in  0x00b8 chunk "ExpT" size=16
+  out 0x000c chunk "AtU8" size=8
+  out 0x001c chunk "B0xy" size=54
+  out 0x005c chunk "Bdoc" size=51
+  out 0x0098 chunk "Code" size=21
+  out 0x00b8 chunk "ExpT" size=16
+  out 0x0014 AtU8: count=2 compact=false parse=ok
+      atom[1] @0x0019 "m"
+      atom[2] @0x001b "f"
+  ref-ok : ExpT entry[0] @0x00c4 atom-index 2 -> "f"
+  VERDICT: PASS
+## evasion-marker-wrong-name.beam
+  in=220B out=60B hardened=true dropped(chunks=2 atoms=0) expect=PASS
+  in  0x000c chunk "AtU8" size=8
+  in  0x001c chunk "Code" size=21
+  in  0x003c chunk "Dcoy" size=60
+  in  0x0080 chunk "Xyz9" size=82
+  out 0x000c chunk "AtU8" size=8
+  out 0x001c chunk "Code" size=21
+  out 0x0014 AtU8: count=2 compact=false parse=ok
+      atom[1] @0x0019 "m"
+      atom[2] @0x001b "f"
+  VERDICT: PASS
+## pass-decoy-real.beam
+  in=364B out=84B hardened=true dropped(chunks=4 atoms=0) expect=PASS
+  in  0x000c chunk "AtU8" size=8
+  in  0x001c chunk "Code" size=24
+  in  0x003c chunk "Bla0" size=60
+  in  0x0080 chunk "Bla1" size=60
+  in  0x00c4 chunk "Bl0a" size=61
+  in  0x010c chunk "B100" size=63
+  in  0x0154 chunk "ExpT" size=16
+  out 0x000c chunk "AtU8" size=8
+  out 0x001c chunk "Code" size=24
+  out 0x003c chunk "ExpT" size=16
+  out 0x0014 AtU8: count=2 compact=false parse=ok
+      atom[1] @0x0019 "m"
+      atom[2] @0x001b "f"
+  ref-ok : Code operand @0x0039 atom-index 1 -> "m"
+  ref-ok : Code operand @0x003a atom-index 2 -> "f"
+  ref-ok : ExpT entry[0] @0x0048 atom-index 2 -> "f"
+  VERDICT: PASS
+## enclave-atoms.beam
+  in=168B out=168B hardened=false dropped(chunks=0 atoms=0) expect=PASS
+  in  0x000c chunk "AtU8" size=79
+  in  0x0064 chunk "Code" size=24
+  in  0x0084 chunk "ExpT" size=28
+  out 0x000c chunk "AtU8" size=79
+  out 0x0064 chunk "Code" size=24
+  out 0x0084 chunk "ExpT" size=28
+  out 0x0014 AtU8: count=6 compact=false parse=ok
+      atom[1] @0x0019 "enclave_attest"
+      atom[2] @0x0028 "enclave.unseal"
+      atom[3] @0x0037 "BLA_session_key"
+      atom[4] @0x0047 "canary_probe"
+      atom[5] @0x0054 "enclave_mod"
+      atom[6] @0x0060 "run"
+  ref-ok : Code operand @0x0081 atom-index 5 -> "enclave_mod"
+  ref-ok : Code operand @0x0082 atom-index 6 -> "run"
+  ref-ok : ExpT entry[0] @0x0090 atom-index 6 -> "run"
+  ref-ok : ExpT entry[1] @0x009c atom-index 1 -> "enclave_attest"
+  VERDICT: PASS
+## stale-mid-canary.beam
+  in=224B out=224B hardened=true dropped(chunks=0 atoms=1) expect=PASS
+  in  0x000c chunk "AtU8" size=47
+  in  0x0044 chunk "Code" size=29
+  in  0x006c chunk "ExpT" size=28
+  in  0x0090 chunk "LocT" size=16
+  in  0x00a8 chunk "ImpT" size=16
+  in  0x00c0 chunk "Line" size=22
+  out 0x000c chunk "AtU8" size=47
+  out 0x0044 chunk "Code" size=29
+  out 0x006c chunk "ExpT" size=28
+  out 0x0090 chunk "LocT" size=16
+  out 0x00a8 chunk "ImpT" size=16
+  out 0x00c0 chunk "Line" size=22
+  out 0x0014 AtU8: count=5 compact=false parse=ok
+      atom[1] @0x0019 "mymod"
+      atom[2] @0x001f "init"
+      atom[3] @0x0024 "_______________"
+      atom[4] @0x0034 "handle_req"
+      atom[5] @0x003f "stop"
+  ref-ok : Code operand @0x0061 atom-index 1 -> "mymod"
+  ref-ok : Code operand @0x0062 atom-index 4 -> "handle_req"
+  ref-ok : Code operand @0x0067 atom-index 5 -> "stop"
+  ref-ok : ExpT entry[0] @0x0078 atom-index 4 -> "handle_req"
+  ref-ok : ExpT entry[1] @0x0084 atom-index 5 -> "stop"
+  ref-ok : LocT entry[0] @0x009c atom-index 5 -> "stop"
+  VERDICT: PASS
+## stale-tarpit-prefix.beam
+  in=144B out=144B hardened=true dropped(chunks=0 atoms=1) expect=PASS
+  in  0x000c chunk "AtU8" size=53
+  in  0x004c chunk "Code" size=24
+  in  0x006c chunk "ExpT" size=28
+  out 0x000c chunk "AtU8" size=53
+  out 0x004c chunk "Code" size=24
+  out 0x006c chunk "ExpT" size=28
+  out 0x0014 AtU8: count=5 compact=false parse=ok
+      atom[1] @0x0019 "mymod"
+      atom[2] @0x001f "init"
+      atom[3] @0x0024 "_____________________"
+      atom[4] @0x003a "handle_req"
+      atom[5] @0x0045 "stop"
+  ref-ok : Code operand @0x0069 atom-index 1 -> "mymod"
+  ref-ok : Code operand @0x006a atom-index 4 -> "handle_req"
+  ref-ok : ExpT entry[0] @0x0078 atom-index 4 -> "handle_req"
+  ref-ok : ExpT entry[1] @0x0084 atom-index 5 -> "stop"
+  VERDICT: PASS
+## tail-after-canary.beam
+  in=208B out=140B hardened=true dropped(chunks=1 atoms=2) expect=PASS
+  in  0x000c chunk "AtU8" size=57
+  in  0x0050 chunk "Code" size=27
+  in  0x0074 chunk "ExpT" size=16
+  in  0x008c chunk "Bla2" size=60
+  out 0x000c chunk "AtU8" size=57
+  out 0x0050 chunk "Code" size=27
+  out 0x0074 chunk "ExpT" size=16
+  out 0x0014 AtU8: count=5 compact=false parse=ok
+      atom[1] @0x0019 "m"
+      atom[2] @0x001b "f"
+      atom[3] @0x001d "_______________"
+      atom[4] @0x002d "_________________"
+      atom[5] @0x003f "late_real_atom"
+  ref-ok : Code operand @0x006d atom-index 1 -> "m"
+  ref-ok : Code operand @0x006e atom-index 2 -> "f"
+  ref-ok : Code operand @0x0071 atom-index 5 -> "late_real_atom"
+  ref-ok : ExpT entry[0] @0x0080 atom-index 5 -> "late_real_atom"
+  VERDICT: PASS
+## pass-append-only.beam
+  in=240B out=112B hardened=true dropped(chunks=1 atoms=3) expect=PASS
+  in  0x000c chunk "AtU8" size=77
+  in  0x0064 chunk "Code" size=27
+  in  0x0088 chunk "ExpT" size=28
+  in  0x00ac chunk "Bla0" size=60
+  out 0x000c chunk "AtU8" size=20
+  out 0x0028 chunk "Code" size=27
+  out 0x004c chunk "ExpT" size=28
+  out 0x0014 AtU8: count=3 compact=false parse=ok
+      atom[1] @0x0019 "mymod"
+      atom[2] @0x001f "init"
+      atom[3] @0x0024 "stop"
+  ref-ok : Code operand @0x0045 atom-index 1 -> "mymod"
+  ref-ok : Code operand @0x0046 atom-index 2 -> "init"
+  ref-ok : Code operand @0x0049 atom-index 3 -> "stop"
+  ref-ok : ExpT entry[0] @0x0058 atom-index 2 -> "init"
+  ref-ok : ExpT entry[1] @0x0064 atom-index 3 -> "stop"
+  VERDICT: PASS
+## stale-second-atu8.beam
+  in=120B out=120B hardened=true dropped(chunks=0 atoms=1) expect=PASS
+  in  0x000c chunk "AtU8" size=8
+  in  0x001c chunk "Code" size=21
+  in  0x003c chunk "AtU8" size=26
+  in  0x0060 chunk "LocT" size=16
+  out 0x000c chunk "AtU8" size=8
+  out 0x001c chunk "Code" size=21
+  out 0x003c chunk "AtU8" size=26
+  out 0x0060 chunk "LocT" size=16
+  out 0x0014 AtU8: count=2 compact=false parse=ok
+      atom[1] @0x0019 "m"
+      atom[2] @0x001b "f"
+  out 0x0044 AtU8: count=4 compact=false parse=ok
+      atom[1] @0x0049 "x"
+      atom[2] @0x004b "_______________"
+      atom[3] @0x005b "y"
+      atom[4] @0x005d "z"
+  ref-ok : LocT entry[0] @0x006c atom-index 3 -> "y"
+  VERDICT: PASS
+## stale-index0.beam
+  in=108B out=108B hardened=true dropped(chunks=0 atoms=1) expect=PASS
+  in  0x000c chunk "AtU8" size=32
+  in  0x0034 chunk "Code" size=24
+  in  0x0054 chunk "ExpT" size=16
+  out 0x000c chunk "AtU8" size=32
+  out 0x0034 chunk "Code" size=24
+  out 0x0054 chunk "ExpT" size=16
+  out 0x0014 AtU8: count=3 compact=false parse=ok
+      atom[1] @0x0019 "_______________"
+      atom[2] @0x0029 "real1"
+      atom[3] @0x002f "real2"
+  ref-ok : Code operand @0x0051 atom-index 2 -> "real1"
+  ref-ok : Code operand @0x0052 atom-index 3 -> "real2"
+  ref-ok : ExpT entry[0] @0x0060 atom-index 2 -> "real1"
+  VERDICT: PASS
+## two-atu8-both-trim.beam
+  in=172B out=100B hardened=true dropped(chunks=0 atoms=4) expect=PASS
+  in  0x000c chunk "AtU8" size=24
+  in  0x002c chunk "Code" size=21
+  in  0x004c chunk "AtU8" size=64
+  in  0x0094 chunk "LocT" size=16
+  out 0x000c chunk "AtU8" size=8
+  out 0x001c chunk "Code" size=21
+  out 0x003c chunk "AtU8" size=8
+  out 0x004c chunk "LocT" size=16
+  out 0x0014 AtU8: count=2 compact=false parse=ok
+      atom[1] @0x0019 "m"
+      atom[2] @0x001b "f"
+  out 0x0044 AtU8: count=2 compact=false parse=ok
+      atom[1] @0x0049 "x"
+      atom[2] @0x004b "y"
+  ref-ok : LocT entry[0] @0x0058 atom-index 2 -> "y"
+  VERDICT: PASS
+## pad-sizes.beam
+  in=228B out=156B hardened=true dropped(chunks=1 atoms=0) expect=PASS
+  in  0x000c chunk "AtU8" size=8
+  in  0x001c chunk "Pd0a" size=1
+  in  0x0028 chunk "Pd1a" size=2
+  in  0x0034 chunk "Pd2a" size=3
+  in  0x0040 chunk "Pd3a" size=4
+  in  0x004c chunk "Pd4a" size=5
+  in  0x005c chunk "Pd5a" size=6
+  in  0x006c chunk "Pd6a" size=7
+  in  0x007c chunk "Code" size=21
+  in  0x009c chunk "Bla3" size=63
+  out 0x000c chunk "AtU8" size=8
+  out 0x001c chunk "Pd0a" size=1
+  out 0x0028 chunk "Pd1a" size=2
+  out 0x0034 chunk "Pd2a" size=3
+  out 0x0040 chunk "Pd3a" size=4
+  out 0x004c chunk "Pd4a" size=5
+  out 0x005c chunk "Pd5a" size=6
+  out 0x006c chunk "Pd6a" size=7
+  out 0x007c chunk "Code" size=21
+  out 0x0014 AtU8: count=2 compact=false parse=ok
+      atom[1] @0x0019 "m"
+      atom[2] @0x001b "f"
+  VERDICT: PASS
+## oversize-tail.beam
+  in=120B out=52B hardened=true dropped(chunks=1 atoms=0) expect=PASS
+  out 0x000c chunk "AtU8" size=8
+  out 0x001c chunk "Tail" size=64 TRUNCATED
+  out 0x0014 AtU8: count=2 compact=false parse=ok
+      atom[1] @0x0019 "m"
+      atom[2] @0x001b "f"
+  VERDICT: PASS
+## evasion-misaligned.beam
+  in=121B out=121B hardened=true dropped(chunks=0 atoms=2) expect=PASS
+  out 0x000c chunk "AtU8" size=8
+  out 0x001c chunk "Xyz1" size=5
+  out 0x002c chunk "7   " size=1012883295 TRUNCATED
+  out 0x0014 AtU8: count=2 compact=false parse=ok
+      atom[1] @0x0019 "m"
+      atom[2] @0x001b "f"
+  VERDICT: PASS
+## atom-classic-tail.beam
+  in=100B out=60B hardened=true dropped(chunks=0 atoms=2) expect=PASS
+  in  0x000c chunk "Atom" size=45
+  in  0x0044 chunk "Code" size=24
+  out 0x000c chunk "Atom" size=8
+  out 0x001c chunk "Code" size=24
+  out 0x0014 Atom: count=2 compact=false parse=ok
+      atom[1] @0x0019 "m"
+      atom[2] @0x001b "f"
+  ref-ok : Code operand @0x0039 atom-index 1 -> "m"
+  ref-ok : Code operand @0x003a atom-index 2 -> "f"
+  VERDICT: PASS
+## atom-latin1-nonascii.beam
+  in=116B out=116B hardened=true dropped(chunks=0 atoms=1) expect=PASS
+  in  0x000c chunk "Atom" size=39
+  in  0x003c chunk "Code" size=24
+  in  0x005c chunk "ExpT" size=16
+  out 0x000c chunk "Atom" size=39
+  out 0x003c chunk "Code" size=24
+  out 0x005c chunk "ExpT" size=16
+  out 0x0014 Atom: count=5 compact=false parse=ok
+      atom[1] @0x0019 "m"
+      atom[2] @0x001b "caf�"
+      atom[3] @0x0020 "r�sum�"
+      atom[4] @0x0027 "_______________"
+      atom[5] @0x0037 "tail"
+  ref-ok : Code operand @0x0059 atom-index 1 -> "m"
+  ref-ok : Code operand @0x005a atom-index 2 -> "caf�"
+  ref-ok : ExpT entry[0] @0x0068 atom-index 3 -> "r�sum�"
+  VERDICT: PASS
+## atom-latin1-overlong.beam
+  in=276B out=260B hardened=true dropped(chunks=0 atoms=1) expect=PASS
+  in  0x000c chunk "Atom" size=223
+  in  0x00f4 chunk "Code" size=21
+  out 0x000c chunk "Atom" size=207
+  out 0x00e4 chunk "Code" size=21
+  out 0x0014 Atom: count=2 compact=false parse=ok
+      atom[1] @0x0019 "m"
+      atom[2] @0x001b "��������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������������"
+  VERDICT: PASS
+## atu8-compact-mid.beam
+  in=128B out=128B hardened=true dropped(chunks=0 atoms=1) expect=PASS
+  in  0x000c chunk "AtU8" size=37
+  in  0x003c chunk "Code" size=24
+  in  0x005c chunk "ExpT" size=28
+  out 0x000c chunk "AtU8" size=37
+  out 0x003c chunk "Code" size=24
+  out 0x005c chunk "ExpT" size=28
+  out 0x0014 AtU8: count=5 compact=true parse=ok
+      atom[1] @0x0019 "m"
+      atom[2] @0x001b "f1"
+      atom[3] @0x001f "____________________"
+      atom[4] @0x0034 "f2"
+      atom[5] @0x0037 "f3"
+  ref-ok : Code operand @0x0059 atom-index 1 -> "m"
+  ref-ok : Code operand @0x005a atom-index 4 -> "f2"
+  ref-ok : ExpT entry[0] @0x0068 atom-index 4 -> "f2"
+  ref-ok : ExpT entry[1] @0x0074 atom-index 5 -> "f3"
+  VERDICT: PASS
+## atu8-compact-tail.beam
+  in=208B out=100B hardened=true dropped(chunks=1 atoms=2) expect=PASS
+  in  0x000c chunk "AtU8" size=49
+  in  0x0048 chunk "Code" size=24
+  in  0x0068 chunk "ExpT" size=28
+  in  0x008c chunk "Bla4" size=60
+  out 0x000c chunk "AtU8" size=12
+  out 0x0020 chunk "Code" size=24
+  out 0x0040 chunk "ExpT" size=28
+  out 0x0014 AtU8: count=3 compact=true parse=ok
+      atom[1] @0x0019 "m"
+      atom[2] @0x001b "f1"
+      atom[3] @0x001e "f2"
+  ref-ok : Code operand @0x003d atom-index 1 -> "m"
+  ref-ok : Code operand @0x003e atom-index 2 -> "f1"
+  ref-ok : ExpT entry[0] @0x004c atom-index 2 -> "f1"
+  ref-ok : ExpT entry[1] @0x0058 atom-index 3 -> "f2"
+  VERDICT: PASS
+## for1-recompute.beam
+  in=5160B out=84B hardened=true dropped(chunks=70 atoms=4) expect=PASS
+  in  0x000c chunk "AtU8" size=82
+  in  0x0068 chunk "Code" size=24
+  in  0x0088 chunk "ExpT" size=16
+  in  0x00a0 chunk "Bla0" size=60
+  in  0x00e4 chunk "Bla1" size=60
+  in  0x0128 chunk "Bla2" size=60
+  in  0x016c chunk "Bla3" size=60
+  in  0x01b0 chunk "Bla4" size=60
+  in  0x01f4 chunk "Bla5" size=60
+  in  0x0238 chunk "Bla6" size=60
+  in  0x027c chunk "Bla7" size=60
+  in  0x02c0 chunk "Bla8" size=60
+  in  0x0304 chunk "Bla9" size=60
+  in  0x0348 chunk "Bl0a" size=61
+  in  0x0390 chunk "Bl0b" size=61
+  in  0x03d8 chunk "Bl0c" size=61
+  in  0x0420 chunk "Bl0d" size=61
+  in  0x0468 chunk "Bl0e" size=61
+  in  0x04b0 chunk "Bl0f" size=61
+  in  0x04f8 chunk "Bl0g" size=61
+  in  0x0540 chunk "Bl0h" size=61
+  in  0x0588 chunk "Bl0i" size=61
+  in  0x05d0 chunk "Bl0j" size=61
+  in  0x0618 chunk "Bl0k" size=61
+  in  0x0660 chunk "Bl0l" size=61
+  in  0x06a8 chunk "Bl0m" size=61
+  in  0x06f0 chunk "Bl0n" size=61
+  in  0x0738 chunk "Bl0o" size=61
+  in  0x0780 chunk "Bl0p" size=61
+  in  0x07c8 chunk "Bl0q" size=61
+  in  0x0810 chunk "Bl0r" size=61
+  in  0x0858 chunk "Bl0s" size=61
+  in  0x08a0 chunk "Bl0t" size=61
+  in  0x08e8 chunk "Bl0u" size=61
+  in  0x0930 chunk "Bl0v" size=61
+  in  0x0978 chunk "Bl0w" size=61
+  in  0x09c0 chunk "Bl0x" size=61
+  in  0x0a08 chunk "Bl0y" size=61
+  in  0x0a50 chunk "Bl0z" size=61
+  in  0x0a98 chunk "B010" size=61
+  in  0x0ae0 chunk "B011" size=61
+  in  0x0b28 chunk "B012" size=61
+  in  0x0b70 chunk "B013" size=61
+  in  0x0bb8 chunk "B014" size=61
+  in  0x0c00 chunk "B015" size=61
+  in  0x0c48 chunk "B016" size=61
+  in  0x0c90 chunk "B017" size=61
+  in  0x0cd8 chunk "B018" size=61
+  in  0x0d20 chunk "B019" size=61
+  in  0x0d68 chunk "B01a" size=61
+  in  0x0db0 chunk "B01b" size=61
+  in  0x0df8 chunk "B01c" size=61
+  in  0x0e40 chunk "B01d" size=61
+  in  0x0e88 chunk "B01e" size=61
+  in  0x0ed0 chunk "B01f" size=61
+  in  0x0f18 chunk "B01g" size=61
+  in  0x0f60 chunk "B01h" size=61
+  in  0x0fa8 chunk "B01i" size=61
+  in  0x0ff0 chunk "B01j" size=61
+  in  0x1038 chunk "B01k" size=61
+  in  0x1080 chunk "B01l" size=61
+  in  0x10c8 chunk "B01m" size=61
+  in  0x1110 chunk "B01n" size=61
+  in  0x1158 chunk "B01o" size=61
+  in  0x11a0 chunk "B01p" size=61
+  in  0x11e8 chunk "B01q" size=61
+  in  0x1230 chunk "B01r" size=61
+  in  0x1278 chunk "B01s" size=61
+  in  0x12c0 chunk "B01t" size=61
+  in  0x1308 chunk "B01u" size=61
+  in  0x1350 chunk "B01v" size=61
+  in  0x1398 chunk "B01w" size=61
+  in  0x13e0 chunk "B01x" size=61
+  out 0x000c chunk "AtU8" size=8
+  out 0x001c chunk "Code" size=24
+  out 0x003c chunk "ExpT" size=16
+  out 0x0014 AtU8: count=2 compact=false parse=ok
+      atom[1] @0x0019 "m"
+      atom[2] @0x001b "f"
+  ref-ok : Code operand @0x0039 atom-index 1 -> "m"
+  ref-ok : Code operand @0x003a atom-index 2 -> "f"
+  ref-ok : ExpT entry[0] @0x0048 atom-index 2 -> "f"
+  VERDICT: PASS
+## for1-tail-garbage.beam
+  in=181B out=113B hardened=true dropped(chunks=1 atoms=0) expect=PASS
+  in  0x000c chunk "AtU8" size=8
+  in  0x001c chunk "Code" size=21
+  in  0x003c chunk "Bla0" size=60
+  out 0x000c chunk "AtU8" size=8
+  out 0x001c chunk "Code" size=21
+  out 0x003c chunk "SIGN" size=1096045906 TRUNCATED
+  out 0x0014 AtU8: count=2 compact=false parse=ok
+      atom[1] @0x0019 "m"
+      atom[2] @0x001b "f"
+  VERDICT: PASS
+## for1-declared-long.beam
+  in=128B out=60B hardened=true dropped(chunks=1 atoms=0) expect=PASS
+  in  0x000c chunk "AtU8" size=8
+  in  0x001c chunk "Code" size=21
+  in  0x003c chunk "Bla0" size=60
+  out 0x000c chunk "AtU8" size=8
+  out 0x001c chunk "Code" size=21
+  out 0x0014 AtU8: count=2 compact=false parse=ok
+      atom[1] @0x0019 "m"
+      atom[2] @0x001b "f"
+  VERDICT: PASS
+## evasion-trunc-table.beam
+  in=80B out=80B hardened=true dropped(chunks=0 atoms=1) expect=PASS
+  in  0x000c chunk "AtU8" size=26
+  in  0x0030 chunk "Code" size=21
+  out 0x000c chunk "AtU8" size=26
+  out 0x0030 chunk "Code" size=21
+  out 0x0014 AtU8: count=4 compact=false parse=FAIL
+      atom[1] @0x0019 "m"
+      atom[2] @0x001b "f"
+      atom[3] @0x001d "_______________"
+      atom[4] @0x002d "x"
+  VERDICT: PASS
+
+=== SUMMARY ===
+PASS             fp-B0xy.beam  (expect PASS)
+PASS             fp-boundary-names.beam  (expect PASS)
+PASS             fp-Blah-decoyless.beam  (expect PASS)
+PASS             fp-B0xy-marker.beam  (expect PASS)
+PASS             evasion-marker-wrong-name.beam  (expect PASS)
+PASS             pass-decoy-real.beam  (expect PASS)
+PASS             enclave-atoms.beam  (expect PASS)
+PASS             stale-mid-canary.beam  (expect PASS)
+PASS             stale-tarpit-prefix.beam  (expect PASS)
+PASS             tail-after-canary.beam  (expect PASS)
+PASS             pass-append-only.beam  (expect PASS)
+PASS             stale-second-atu8.beam  (expect PASS)
+PASS             stale-index0.beam  (expect PASS)
+PASS             two-atu8-both-trim.beam  (expect PASS)
+PASS             pad-sizes.beam  (expect PASS)
+PASS             oversize-tail.beam  (expect PASS)
+PASS             evasion-misaligned.beam  (expect PASS)
+PASS             atom-classic-tail.beam  (expect PASS)
+PASS             atom-latin1-nonascii.beam  (expect PASS)
+PASS             atom-latin1-overlong.beam  (expect PASS)
+PASS             atu8-compact-mid.beam  (expect PASS)
+PASS             atu8-compact-tail.beam  (expect PASS)
+PASS             for1-recompute.beam  (expect PASS)
+PASS             for1-tail-garbage.beam  (expect PASS)
+PASS             for1-declared-long.beam  (expect PASS)
+PASS             evasion-trunc-table.beam  (expect PASS)

@@ -1,0 +1,9 @@
+{
+  "format": "pyc",
+  "hardened": true,
+  "marshalTrailerDropped": 7649,
+  "trailerRecords": 48,
+  "weaveDecoysRemoved": 26,
+  "input": "test-fixtures/adversarial/pyc-weave/app_hardened.pyc",
+  "output": "test-fixtures/adversarial/pyc-weave/app_cleaned.pyc"
+}

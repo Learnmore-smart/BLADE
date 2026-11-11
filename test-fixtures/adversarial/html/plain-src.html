@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head><title>Plain app</title></head>
+<body>
+<div id="app">hello</div>
+<script>
+function checkoutTotal(cart, coupon) {
+  let total = 0;
+  for (const item of cart) total += item.price * item.qty;
+  if (coupon === "SAVE20") total *= 0.8;
+  return Math.round(total * 100) / 100;
+}
+console.log(checkoutTotal([{ price: 10, qty: 2 }], "SAVE20"));
+</script>
+<script type="module">
+import { createApp } from "./app.js";
+export const mount = () => createApp("#app");
+mount();
+</script>
+</body>
+</html>

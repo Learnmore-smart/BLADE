@@ -1,0 +1,25 @@
+[1m[36m╔══════════════════════════════════════════════════════════════════════════════╗[0m
+[1m[36m║  🛡️  BLA: Blind LLM Agents (bla-agents v3.2.2)                             ║[0m
+[1m[36m║  [33mPoison -> Exhaust -> Hallucinate. Make Reverse Engineering Bankrupt Again.[36m  ║[0m
+[1m[36m╚══════════════════════════════════════════════════════════════════════════════╝[0m
+
+[1m[32m🛡️  BLA Adversarial Shield Successfully Injected![0m (77 ms)
+
+  [1mInput Target:[0m      D:\Noah\文档\Coding\1. Open-Source\BLADE\test-fixtures\adversarial\pyc\synth-37.pyc
+  [1mProtected Output:[0m  [36mD:\Noah\文档\Coding\1. Open-Source\BLADE\test-fixtures\adversarial\pyc\woven\synth-37-woven.pyc[0m
+  [1mFormat / Preset:[0m   python-pyc / [35mbankrupt[0m (seed: bla-628b38f733caf288adce8eb271de20c9)
+
+[1m[33m── Counter-REA Defense Metrics ─────────────────────────────────────────────────[0m
+  • Decoy Tarpit Functions Injected:    [1m22[0m (0 fake cross-references)
+  • Primitive Candidate Branches:       [1m0[0m (> REA's 256 candidate limit)
+  • Alias Selection States:             [1m0[0m (> REA's 512 state limit)
+  • IPC Ambiguity Sites / Decoy Routes: [1m0[0m IPC sites / [1m0[0m decoy routes
+  • Enclave Chaff Manifests Embedded:   [1m16[0m
+
+[1m[36m── Before vs. After BLA Impact (Claude Opus 4 / REA Loop) ──────────────────────[0m
+  • REA Exposure Score:       [31m81/100 (UNPROTECTED)[0m  -->  [32m[1m9/100 (BLA_PROTECTED)[0m
+  • REA Examination Status:   [31mCOMPLETE[0m                   -->  [32m[1mLIMITED (pyc-marshal-chaff-saturation)[0m
+  • Obligation Graph Nodes:   4 nodes                    -->  [1m34 nodes[0m
+  • Attacker Token Burn:      6,440 tokens                -->  [33m[1m1,548,227 tokens (240.4x amplification)[0m
+  • Attacker API Bill:        $0.26                      -->  [33m[1m$25.77 (99.1x bankruptcy multiplier)[0m
+  • Agent Verdict:            [31mTRIVIAL_CLONE[0m              -->  [32m[1mAGENT_HALLUCINATION_AND_BANKRUPTCY[0m

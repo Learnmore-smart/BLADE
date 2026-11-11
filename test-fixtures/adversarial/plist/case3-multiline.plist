@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd" []>
+<plist version="1.0">
+<dict>
+  <key>AppName</key>
+  <string>RealApp</string>
+  <key>BLACanaryCredential_0</key>
+  <data>
+    U0VDRUVUX0RBVEFfQkxBQ0s=
+    QUJDREVGRw==
+  </data>
+  <key>BLAWrappedNote</key>
+  <string>line one
+line two</string>
+  <key>BLASameLine</key><string>compact</string>
+  <key>BLABlankLine</key>
+
+  <string>after blank</string>
+  <key>BLACommented</key>
+  <!-- a comment -->
+  <string>after comment</string>
+  <key>BLADictVal</key>
+  <dict>
+    <key>inner</key>
+    <string>v</string>
+  </dict>
+  <key>BLABool</key>
+  <true/>
+  <key>BLADate</key>
+  <date>2024-01-01T00:00:00Z</date>
+</dict>
+</plist>
