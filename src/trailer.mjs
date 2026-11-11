@@ -201,6 +201,15 @@ function cutAtMarker(buf, marker, backup = 0, boundary = -1) {
 // fuse sentinels, Dart snapshot pool, chaff, canary, .dep-v0). ELF binaries may
 // additionally have .go.buildinfo / .isolate sections overwritten in place —
 // originals are destroyed; detect, zero the decoy bytes, and report.
+/**
+ * De-harden an ELF/Mach-O/PE binary: excise the appended
+ * `\0[BLA-NATIVE-SHIELD-V1]` trailer (fuse flood, rustc/Go bait, canary,
+ * .dep-v0), strip or defang a signature-verified `.enclave` PE section,
+ * re-zero slack-planted decoy payloads, and report in-place section
+ * overwrites whose original bytes are unrecoverable.
+ * @param {Buffer} buf
+ * @returns {{ buffer: Buffer, report: object }}
+ */
 export function scrubNative(buf) {
   const report = { format: "native", bytesIn: buf.length, decoys: [] };
   // BLA 3.2.4 `.enclave` mapped-section injection — fix the section table
@@ -383,6 +392,8 @@ export function scrubNative(buf) {
 
 // ---------- Android DEX ----------
 // \0[BLA-DEX-SHIELD-V1] trailer; header file_size/SHA-1/Adler32 recomputed.
+/** De-harden a DEX: drop BLA's appended decoy class_defs / map_list
+ *  payload and repair header size fields. @param {Buffer} buf */
 export function scrubDex(buf) {
   // best-degree recovery for malformed inputs: bounded structural repair
   // (file_size / dangling map_off / sha1+adler32 reseal) before scrubbing —
@@ -469,6 +480,8 @@ export function scrubDex(buf) {
 }
 
 // ---------- IL2CPP global-metadata.dat ----------
+/** De-harden an il2cpp global-metadata blob: excise the BLA trailer,
+ *  keep every declared section. @param {Buffer} buf */
 export function scrubIl2cpp(buf) {
   const cut = cutAtMarker(buf, "[BLA-IL2CPP-SHIELD]", 1);
   if (!cut) return { buffer: buf, report: { format: "il2cpp", hardened: false } };
@@ -477,6 +490,8 @@ export function scrubIl2cpp(buf) {
 
 // ---------- .NET managed PE ----------
 // Appended section: "\0BLA_DOTNET_CLR_SHIELD_V1\0..." — marker is preceded by NUL.
+/** De-harden a managed PE: excise the BLA_DOTNET_CLR_SHIELD trailer
+ *  without touching CLR metadata. @param {Buffer} buf */
 export function scrubDotnet(buf) {
   const boundary = peContentEnd(buf);
   const cutD = cutAtMarker(buf, "BLA_DOTNET_CLR_SHIELD_V1", 1, boundary);
@@ -492,6 +507,8 @@ export function scrubDotnet(buf) {
 // ---------- EVM bytecode ----------
 // BLA appends Solidity-shaped terminal CBOR (u16be length at EOF) containing
 // `bla` / `bla_evm_canary` keys, optionally preceded by a 0x5b JUMPDEST pad run.
+/** De-harden EVM bytecode: strip decoy-unreachable padding after the
+ *  declared end and flag jump-dest anomalies. @param {Buffer} buf */
 export function scrubEvm(buf) {
   let end = buf.length;
   let dropped = 0, trailers = 0;
@@ -544,6 +561,8 @@ export function scrubEvm(buf) {
 }
 
 // ---------- GPU PTX (text) ----------
+/** De-harden PTX source: drop injected decoy .entry/.func bodies and
+ *  marker lines, keep real kernels. @param {string} text */
 export function scrubPtx(text) {
   const at = text.indexOf("[BLA-PTX-SHIELD]");
   if (at < 0) return { code: text, report: { format: "ptx", hardened: false } };
@@ -598,6 +617,9 @@ function jvmCpWalk(buf) {
 // entries. this_class=0 is invalid in EVERY class file; super_class may be 0
 // (java.lang.Object). An empty pool (cp_count<=1) has nothing to forge or
 // validate — defer to the caller's version/extension heuristics.
+/** JVMS §4.1 structural check: CP parses AND this_class/super_class resolve
+ *  to CONSTANT_Class — used by detect() to reject forged CAFEBABE.
+ *  @param {Buffer} buf @returns {boolean} */
 export function jvmClassLooksValid(buf) {
   if (buf.length < 10 || buf.readUInt32BE(0) !== 0xcafebabe) return false;
   const { ok, tagAt, cpCount, cpEnd } = jvmCpWalk(buf);
@@ -636,6 +658,11 @@ function jvmClassEnd(buf, cpEnd) {
   }
   return p;
 }
+/** De-harden a JVM class: tail-cut BLA's appended decoy constant-pool run
+ *  when it reaches CP end; otherwise neutralize decoy Utf8 payloads in
+ *  place (indices preserved) and drop decoy attributes. Legit entries
+ *  inside a decoy run are kept — neutralization is surgical.
+ *  @param {Buffer} buf @returns {{ buffer: Buffer, report: object }} */
 export function scrubJvm(buf) {
   const trailer = cutAtMarker(buf, "BLA_JVM_SHIELD_V1", 1);
   if (trailer) return { buffer: trailer.buffer, report: { format: "jvm", mode: "trailer", hardened: true, trailerDropped: trailer.cutBytes } };
@@ -736,6 +763,9 @@ export function scrubJvm(buf) {
 }
 
 // ---------- Apple plist ----------
+/** De-harden an XML plist: drop injected key/value decoy pairs and a
+ *  corrupted DOCTYPE entity; flag unmatched BLA* keys it cannot prove
+ *  are decoys. @param {string} text @returns {{ code: string, report: object }} */
 export function scrubPlistXml(text) {
   let out = text;
   let removedKeys = 0;
@@ -772,6 +802,8 @@ export function scrubPlistXml(text) {
     : [];
   return { code: out, report: { format: "plist-xml", hardened, decoyKeysDropped: removedKeys, internalSubsetRemoved: !/\[\s*\]/.test(out.match(/<!DOCTYPE[^>]*>/i)?.[0] ?? ""), ...(suspiciousKeys.length ? { suspiciousKeys } : {}) } };
 }
+/** De-harden a binary plist: drop decoy objects and rewrite the offset
+ *  table so the bplist stays parseable. @param {Buffer} buf */
 export function scrubBplist(buf) {
   const cut = cutAtMarker(buf, "BLA_BPLIST_DEPTH_GUARD_", 1);
   if (!cut) return { buffer: buf, report: { format: "bplist", hardened: false } };
@@ -783,6 +815,10 @@ export function scrubBplist(buf) {
 // User-Agent: BLA-PCAP-Shield, Host: enclave.internal, X-BLA-Nested-* headers,
 // or 0xb1a0-id DNS bait. Drop marked records; keep header + real packets.
 const PCAP_DECOY_MARKERS = ["[BLA-PCAP-SHIELD]", "BLA-PCAP-Shield", "enclave.internal", "X-BLA-Nested-", "PROTECTED_CANARY_CREDENTIAL=", "/bla/tarpit/"];
+/** De-harden a classic pcap (LE/BE, usec/nsec) or pcapng: drop decoy
+ *  packet records/blocks hitting the [BLA-PCAP-SHIELD]/marker signature,
+ *  byte-triage unwalkable residue, flag markers inside structural pcapng
+ *  blocks it must keep. @param {Buffer} buf */
 export function scrubPcap(buf) {
   if (buf.length < 24) return { buffer: buf, report: { format: "pcap", hardened: false } };
   const le = buf.readUInt32LE(0) === 0xa1b2c3d4 || buf.readUInt32LE(0) === 0xa1b23c4d;
@@ -875,6 +911,8 @@ export function scrubPcap(buf) {
 
 // ---------- UF2 firmware ----------
 // Decoy 512-byte blocks always carry the [BLA-UF2-SHIELD] marker in payload.
+/** De-harden a UF2 firmware image: drop 512-byte blocks carrying the
+ *  [BLA-UF2-SHIELD] payload marker. @param {Buffer} buf */
 export function scrubUf2(buf) {
   const aligned = buf.length - (buf.length % 512);
   const tail = buf.subarray(aligned);
@@ -929,6 +967,9 @@ function beamKillMarkers(payload) {
   }
   return { payload: pay ?? payload, hits };
 }
+/** De-harden a BEAM module: drop decoy chunks (Dbgi/Attr injections and
+ *  named decoy chunks), flag lone decoys that are shape-indistinguishable
+ *  from real chunks via beamLoneDecoyScore. @param {Buffer} buf */
 export function scrubBeam(buf) {
   if (buf.length < 12 || buf.subarray(0, 4).toString("latin1") !== "FOR1" || buf.subarray(8, 12).toString("latin1") !== "BEAM") {
     return { buffer: buf, report: { format: "beam", hardened: false } };
@@ -1301,6 +1342,9 @@ function weaveScan(buf, pos, layout, cuts, patches, depth = 0) {
   const end = marshalSkip(buf, pos, layout);
   return end < 0 ? null : { end, decoy: false };
 }
+/** De-harden a .pyc: excise injected decoy marshal objects and rewrite
+ *  co_consts/co_names; surgically preserve original bytecode spans via
+ *  pycSurgicalSpans when a weave is present. @param {Buffer} buf */
 export function scrubPyc(buf) {
   if (buf.length < 17 || buf[2] !== 0x0d || buf[3] !== 0x0a) return { buffer: buf, report: { format: "pyc", hardened: false } };
   const layout = pycLayout(buf.readUInt16LE(0));
@@ -1389,6 +1433,8 @@ const crc32 = (b) => { let x = 0xffffffff; for (let i = 0; i < b.length; i++) x 
 
 // Cheap structural check — a valid EOCD whose central directory parses.
 // Used to route self-extracting archives that carry a foreign stub (MZ, ELF).
+/** Structural ZIP check used by detect() (SFX stubs, archive routing).
+ *  @param {Buffer} buf @returns {boolean} */
 export function looksLikeZip(buf) {
   if (buf.length < 22) return false;
   for (let p = buf.length - 22; p >= Math.max(0, buf.length - 66000); p--) {
@@ -1400,6 +1446,11 @@ export function looksLikeZip(buf) {
   return false;
 }
 
+/** De-harden a ZIP/APK: drop decoy members (enclave/ paths, marker-named),
+ *  salvage real members whose local/central headers desynced, preserve
+ *  APK signing metadata, recurse into nested archives up to a depth cap.
+ *  @param {Buffer} buf @param {number} [depth]
+ *  @returns {{ buffer: Buffer, report: object }} */
 export function scrubZip(buf, depth = 0) {
   // find EOCD — tolerate trailing bytes after the record (overlays, sigs) and
   // validate the central directory it points at so a fake EOCD embedded in a
@@ -1728,6 +1779,10 @@ const PY_WEAVE_CALL = /^\s*_ = [a-z_][a-z0-9_]*\(\d+, 0\)( \^ [a-z_][a-z0-9_]*\(
 // markers that can legitimately sit inside string literals — neutralize in
 // place (same length) rather than dropping the string.
 const PY_LITERAL_MARKERS = /probe_canary_honeypot|CANARY_TOKENS|COGNITIVE_ARMOR_CORPUS|runtime attestation boundary|\[BLA-[A-Z0-9-]*\]?|BLA_[A-Z0-9_]+|enclave_unseal_payload|PROTECTED_CANARY_CREDENTIAL=[^\s"']*/g;
+/** De-harden Python source: strip decoy functions/classes, `__bla_*`
+ *  sidecar preamble blocks (import + try/except integrity binding),
+ *  marker literals; fixpoint until stable. @param {string} text
+ *  @returns {{ code: string, report: object }} */
 export function scrubPySource(text) {
   const hadCRLF = text.includes("\r\n");
   const lines = text.split(/\r?\n/);
@@ -1950,6 +2005,10 @@ export function scrubPySource(text) {
 // (application/json, importmap, text/x-template, …) are never BLA-hardened
 // and must not be fed to dehardenJs.
 const HTML_NONJS_TYPE = /type\s*=\s*["']?(?!text\/javascript|application\/javascript|module|text\/ecmascript|application\/ecmascript)[^"'>\s]+/i;
+/** De-harden an HTML document: deharden or drop hardened inline scripts,
+ *  skip <script> inside comments/non-JS types, and flag (never strip)
+ *  BLA machinery names inside on*= handlers and javascript: URLs.
+ *  @param {string} text @returns {{ code: string, report: object }} */
 export function scrubHtml(text) {
   let dehardened = 0, dropped = 0, failed = 0;
   // Mask HTML comments first — a <script> inside <!-- ... --> is inert markup
@@ -1997,6 +2056,9 @@ export function scrubHtml(text) {
 // ---------- source map ----------
 // protect on .map REPLACES the file with a honey map — nothing real survives.
 // Detect and report; the correct action is "do not trust this map".
+/** Inspect a .map: classify honey-map (BLA-replaced, original mappings
+ *  destroyed — report `unrecoverable`) vs real. Never trusts the map.
+ *  @param {string} text @returns {object} inspection report */
 export function inspectSourcemap(text) {
   try {
     const m = JSON.parse(text);
@@ -2024,6 +2086,8 @@ const HEADER_MARKERS = [
   "SYMBOL_OFFSET_MANIFEST_", "HSM_ATTESTATION_DESCRIPTOR_", "FSM_SPEC_V3",
   "QUORUM_PROTOCOL_DESCRIPTOR", "IPC_BRIDGE_TOPOLOGY",
 ];
+/** Inspect a BLA emit-headers artifact (.h/.rs/.go/...): ≥2 marker hits
+ *  means the whole file is decoy surface. @param {string} text */
 export function inspectShieldHeader(text) {
   const hits = HEADER_MARKERS.filter((m) => text.includes(m));
   const decoy = hits.length >= 2;
@@ -2032,6 +2096,7 @@ export function inspectShieldHeader(text) {
     note: decoy ? "BLA emit-headers artifact — entire file is decoy surface, excluded from analysis corpus" : undefined,
   };
 }
+/** Replacement text written in place of an excluded decoy header file. */
 export function headerTombstone() {
   return "/* [BLADE] removed BLA emit-headers decoy source (see report) */\n";
 }
@@ -2050,6 +2115,8 @@ export const BUNFS_TRAILER = B("\n---- Bun! ----\n");
 // Position just past the sentinel: EOF for the plain appended trailer,
 // EOF-8 for the sized variant (u64 total-size footer trails the sentinel).
 // Mirrors detectBunStandaloneGraph in vendor/bla (SUFFIX = Offsets 32 + 16).
+/** Locate the trailing bunfs module-graph sentinel's payload span, or 0.
+ *  @param {Buffer} buf @returns {number} */
 export function bunfsGraphEnd(buf) {
   const size = buf.length, t = BUNFS_TRAILER.length, suffix = t + 32;
   if (size >= suffix && buf.subarray(size - t, size).equals(BUNFS_TRAILER)) return size;
@@ -2060,6 +2127,8 @@ const BUNFS_DECOY_MARKERS = [
   "/$bunfs/", "PROTECTED_CANARY_CREDENTIAL=", "JSC\0BLA-DECOY-BYTECODE",
   "\x7fELF-BLA-DECOY-NAPI", "[COGNITIVE_ARMOR_INTERLOCK:",
 ];
+/** Inspect a standalone .bunfs-snapshot decoy graph (pure honeypot).
+ *  @param {Buffer} buf @returns {object} inspection report */
 export function inspectBunfsSnapshot(buf) {
   const end = bunfsGraphEnd(buf);
   const latin = buf.toString("latin1");
@@ -2081,6 +2150,8 @@ export function bunfsTombstone() {
 }
 // Companion note: a pure strip⇒fail binding record (SHA-256 over entry +
 // sidecar bytes + path labels) — binding metadata, no real logic to salvage.
+/** Inspect a .bla-sidecar.v1.json strip=>fail binding record.
+ *  @param {Buffer} buf @returns {object} inspection report */
 export function inspectSidecarNote(buf) {
   let note = null;
   try { note = JSON.parse(buf.toString("utf8")); } catch {}
