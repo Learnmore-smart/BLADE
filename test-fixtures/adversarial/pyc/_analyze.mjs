@@ -10,7 +10,7 @@ const DIR = fileURLToPath(new URL(".", import.meta.url));
 
 // ---- BLADE dispatch (src/trailer.mjs pycLayout) — for reporting dispatch gaps ----
 function pycLayoutBlade(magic) {
-  if ((magic >= 3390 && magic <= 3393) || magic === 3400 || magic === 3401) return "py37";
+  if ((magic >= 3390 && magic <= 3394) || magic === 3400 || magic === 3401) return "py37";
   if (magic >= 3410 && magic <= 3439) return "py38";
   if (magic >= 3450 && magic <= 3699) return "py311";
   return null;
