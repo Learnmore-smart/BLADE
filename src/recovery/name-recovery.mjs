@@ -80,7 +80,8 @@
 // recoverWasmExports(wasm: Buffer) => { names, nameSection? }
 //
 //   wasm      – raw .wasm binary (pre- or post-scrubWasm; both handled).
-//               Throws "not wasm" on bad magic — same policy as scrubWasm.
+//               Throws "not wasm" on bad magic internally (scrubWasm itself
+//               keep+flags bad-magic input; this helper is stricter).
 //   returns   – { names, nameSection }
 //     names – Array<{ index, kind, from, suggested, confidence, evidence,
 //                    decoy? }> — one entry per BLA-shaped export name.
