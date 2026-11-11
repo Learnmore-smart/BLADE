@@ -1,5 +1,13 @@
 // BLADE library entry point — import the scrubbers without executing the CLI.
 //   import { detect, scrubNative, dehardenJs } from "blade";
+//
+// Contract shared by every scrubXxx(bufOrText) function:
+//   - never throws on malformed input — worst case is a passthrough with a
+//     `note` field explaining why nothing was modified;
+//   - returns { buffer } (binary formats) or { code } (text formats) plus a
+//     `report` object; report.hardened=true means BLA surface was found;
+//   - never destroys data it cannot prove is armor — ambiguous evidence is
+//     kept and flagged in the report (suspicious*/flagged* fields).
 export { detect } from "./detect.mjs";
 export { dehardenJs, looksBlaHardened } from "./js-deharden.mjs";
 export {
