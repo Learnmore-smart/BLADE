@@ -1075,6 +1075,72 @@ function jvmDeclaredEnd(buf) {
   return at <= buf.length ? at : -1;
 }
 
+// ggml type → [block_size, type_size]; needed to size tensor data regions.
+const GGML_TYPES = {
+  0: [1, 4], 1: [1, 2], 2: [32, 18], 3: [32, 20], 6: [32, 22], 7: [32, 24],
+  8: [32, 34], 9: [32, 40], 10: [256, 84], 11: [256, 110], 12: [256, 144],
+  13: [256, 176], 14: [256, 210], 15: [256, 292], 16: [256, 66], 17: [256, 74],
+  18: [256, 98], 19: [256, 50], 20: [32, 18], 21: [256, 110], 22: [256, 82],
+  23: [256, 136], 24: [1, 1], 25: [1, 2], 26: [1, 4], 27: [1, 8], 28: [1, 8],
+  29: [256, 56], 30: [1, 2], 34: [256, 54], 35: [256, 66],
+};
+const GGUF_VALUE_SCALARS = { 0: 1, 1: 1, 2: 2, 3: 2, 4: 4, 5: 4, 6: 4, 7: 1, 10: 8, 11: 8, 12: 8 };
+function ggufSkipValue(buf, off, type, depth = 0) {
+  if (off < 0 || off > buf.length) return -1;
+  if (type === 8) { const l = Number(buf.readBigUInt64LE(off)); const e = off + 8 + l; return e > buf.length ? -1 : e; }
+  if (type === 9) {
+    if (depth > 64) return -1;
+    const et = buf.readUInt32LE(off); const n = Number(buf.readBigUInt64LE(off + 4));
+    if (n > buf.length - off) return -1;
+    let p = off + 12;
+    for (let i = 0; i < n; i++) { p = ggufSkipValue(buf, p, et, depth + 1); if (p < 0) return -1; }
+    return p;
+  }
+  return type in GGUF_VALUE_SCALARS ? off + GGUF_VALUE_SCALARS[type] : -1;
+}
+function ggufDeclaredEnd(buf) {
+  if (buf.length < 24 || buf.toString("ascii", 0, 4) !== "GGUF") return -1;
+  const kvCount = Number(buf.readBigUInt64LE(16));
+  if (kvCount > 1e6) return -1;
+  const tensorCount = Number(buf.readBigUInt64LE(8));
+  let at = 24, alignment = 32;
+  for (let i = 0; i < kvCount; i++) {
+    if (at + 8 > buf.length) return -1;
+    const klen = Number(buf.readBigUInt64LE(at));
+    if (at + 8 + klen + 4 > buf.length) return -1;
+    const key = buf.subarray(at + 8, at + 8 + klen).toString("utf8");
+    const vtype = buf.readUInt32LE(at + 8 + klen);
+    const after = ggufSkipValue(buf, at + 8 + klen + 4, vtype);
+    if (after < 0) return -1;
+    if (key === "general.alignment" && vtype === 4) alignment = buf.readUInt32LE(at + 8 + klen + 4);
+    at = after;
+  }
+  const tensors = [];
+  for (let i = 0; i < tensorCount; i++) {
+    if (at + 8 > buf.length) return -1;
+    const nlen = Number(buf.readBigUInt64LE(at));
+    at += 8 + nlen;
+    if (at + 4 > buf.length) return -1;
+    const ndims = buf.readUInt32LE(at); at += 4;
+    if (ndims > 8 || at + ndims * 8 + 12 > buf.length) return -1;
+    let numel = 1;
+    for (let d = 0; d < ndims; d++) numel *= Number(buf.readBigUInt64LE(at + d * 8));
+    at += ndims * 8;
+    const type = buf.readUInt32LE(at); at += 4;
+    const offset = Number(buf.readBigUInt64LE(at)); at += 8;
+    if (!(type in GGML_TYPES)) return -1; // unknown quant — can't size data
+    tensors.push({ numel, type, offset });
+  }
+  // With zero tensors there is no data region and no alignment padding.
+  const dataStart = tensors.length === 0 ? at : (alignment ? Math.ceil(at / alignment) * alignment : at);
+  let end = dataStart;
+  for (const t of tensors) {
+    const [bs, ts] = GGML_TYPES[t.type];
+    end = Math.max(end, dataStart + t.offset + Math.ceil(t.numel / bs) * ts);
+  }
+  return end <= buf.length ? end : -1;
+}
+
 function pcapDeclaredEnd(buf) {
   if (buf.length < 24) return -1;
   const le = buf.readUInt32LE(0) === 0xa1b2c3d4 || buf.readUInt32LE(0) === 0xa1b23c4d;
@@ -1126,6 +1192,7 @@ const DECLARED_END = {
   uf2: uf2DeclaredEnd,
   asar: asarDeclaredEnd,
   class: jvmDeclaredEnd, jvm: jvmDeclaredEnd,
+  gguf: ggufDeclaredEnd,
 };
 
 function detectDeclaredEnd(buf, hint) {
@@ -1149,6 +1216,7 @@ function detectDeclaredEnd(buf, hint) {
         ["uf2", uf2DeclaredEnd],
         ["asar", asarDeclaredEnd],
         ["jvm", jvmDeclaredEnd],
+        ["gguf", ggufDeclaredEnd],
       ];
   for (const [fmt, fn] of order) {
     try {
