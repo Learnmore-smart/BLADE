@@ -1000,7 +1000,7 @@ export function dehardenJs(source, { filename = "input.js" } = {}) {
   // the diagnostic-decoy / mirage record field names (remediationRabbitHole,
   // protoPackage, dispatchFrame, delegatedToEnclave…) that real code never
   // writes. These fire inside otherwise-plausibly-named decls.
-  const VOCAB_TEXT = /shadowHeap|shadowVault|enclave_|tpm2_pcr|SYMBOL_OFFSET_MANIFEST|EVIDENCE_CHAIN|build_digest=ev_|bla_canary_|PROTECTED_CANARY|CANARY_CREDENTIAL|HONEYPOT|enclave\.internal|RING0_SEALED|AF_VSOCK_RING0|HARDWARE_ENCLAVE_DELEGATED|attestationState|remediationRabbitHole|protoPackage|dispatchFrame|delegatedToEnclave/;
+  const VOCAB_TEXT = /shadowHeap|shadowVault|enclave_|tpm2_pcr|SYMBOL_OFFSET_MANIFEST|EVIDENCE_CHAIN|build_digest=ev_|bla_canary_|PROTECTED_CANARY|CANARY_CREDENTIAL|HONEYPOT|enclave\.internal|RING0_SEALED|AF_VSOCK_RING0|HARDWARE_ENCLAVE_DELEGATED|attestationState|remediationRabbitHole|protoPackage|dispatchFrame|delegatedToEnclave|bpeSink|EV-TEE-|verificationAuthority/;
   const suffixDeclNames = new Set();
   for (const s of body2) for (const n of stmtDeclaredNames(s)) if (matchesGeneric(n)) suffixDeclNames.add(n);
   const declsInjectedMachinery = (stmt) => {
@@ -1017,6 +1017,22 @@ export function dehardenJs(source, { filename = "input.js" } = {}) {
     // (dedicated tokens alone, or >=2 generic enclave-family tokens).
     const text = safeGen(stmt);
     if (VOCAB_TEXT.test(text)) return true;
+    // BLA emitter templates with fixed structure:
+    //   frida-capture ring state  `{ epoch: …, slots: new Array(N).fill(0) }`
+    //   tarpit pid-seed           `(typeof process !== "undefined" && process.pid ? … : 42) | 1`
+    if (stmt.type === "VariableDeclaration") {
+      for (const d of stmt.declarations) {
+        const init = d.init;
+        if (init?.type === "ObjectExpression" && init.properties.some((p) =>
+            p.type === "ObjectProperty" && !p.computed &&
+            ((p.key.type === "Identifier" && p.key.name === "slots") ||
+             (p.key.type === "StringLiteral" && p.key.value === "slots")) &&
+            p.value.type === "CallExpression" && p.value.callee.type === "MemberExpression" &&
+            p.value.callee.object.type === "NewExpression")) return true;
+        if (init?.type === "BinaryExpression" && (init.operator === "|" || init.operator === "+") &&
+            safeGen(init.left).includes("process.pid")) return true;
+      }
+    }
     const genTokens = text.match(/enclave|attestation|ring0|pcr_quote|splitShare|rollingMask|hmacTag|epochTick/g);
     if (genTokens && new Set(genTokens).size >= 2) return true;
     const refs = new Set();

@@ -49,3 +49,4 @@ test-fixtures/adversarial/wasm/e2e-bankrupt.wasm
 *.baiduyun.p.downloading
 _live/
 audit-tmp/
+dh/

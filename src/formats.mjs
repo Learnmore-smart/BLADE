@@ -815,7 +815,16 @@ export function scrubGguf(buf) {
     }
     off = end;
   }
-  const rest = buf.subarray(off); // tensor infos + data, verbatim.
+  let rest = buf.subarray(off); // tensor infos + data, verbatim.
+  // tensorCount=0 → every byte after the KVs is foreign filler. BLA pads
+  // the tail with NUL runs when it stuffs decoy KVs; real tensor data
+  // can't exist (no tensors declared). Only trim once the file is already
+  // proven hardened (dropped>0) — verbatim preservation wins otherwise.
+  if (Number(tensorCount) === 0 && dropped.length > 0) {
+    let e = rest.length;
+    while (e > 0 && rest[e - 1] === 0) e--;
+    if (e < rest.length) rest = rest.subarray(0, e);
+  }
   // kvCount under-declared? If ≥2 consecutive records right after the
   // declared KVs still parse as plausible KV entries, the count lied — the
   // surplus records land in `rest` mis-framed as tensor_infos. Can't rewrite

@@ -592,8 +592,8 @@ const JVM_CP_SIZES = (tag) => ({ 3: 5, 4: 5, 5: 9, 6: 9, 9: 5, 10: 5, 11: 5, 12:
 // Hard anchor: BLA's fixed head entries, always emitted first (jvm-bytecode.ts:88-101).
 // Requiring an anchor kills false-positive cuts on legit strings that merely
 // resemble decoy content (e.g. a real "TRANSPORT_ENDPOINT=…" constant).
-const JVM_HARD_ANCHOR = /^(BlaEnclaveDelegation|com\/enclave\/sgx\/TeeAttestationBridge|verifyShamirEd25519QuorumRing:\(Ljava\/nio\/ByteBuffer;\[B\)Z|unsealVsockCid16Frame:\(J\[B\)\[B|\[BLA-JVM-ENCLAVE:)/;
-const JVM_DECOY_UTF8 = /^(BlaEnclaveDelegation|com\/enclave\/(sgx\/TeeAttestationBridge|tarpit\/StateNode_[0-9a-f]{2}_pc_\d+)|verifyShamirEd25519QuorumRing:\(Ljava\/nio\/ByteBuffer;\[B\)Z|unsealVsockCid16Frame:\(J\[B\)\[B|\[BLA-JVM-ENCLAVE:|PROTECTED_CANARY_CREDENTIAL=|TRANSPORT_ENDPOINT=|TRANSPORT_QUERY_CONFLICT=|\[COGNITIVE_ARMOR_INTERLOCK|\[[a-z0-9][a-z0-9.-]*\] [A-Z][A-Za-z]+ ?\([A-Za-z0-9_.:-]+\): .+ Remediation: )/i;
+const JVM_HARD_ANCHOR = /^(BlaEnclaveDelegation|com\/enclave\/|verifyShamirEd25519QuorumRing:\(Ljava\/nio\/ByteBuffer;\[B\)Z|unsealVsockCid16Frame:\(J\[B\)\[B|\[BLA-JVM-ENCLAVE:)/;
+const JVM_DECOY_UTF8 = /^(BlaEnclave\w*|com\/enclave\/|ENCLAVE:chaff_|enclave_build_id|enclave_pipe_forwarder|text\.enclave|rodata\.abi_shim|HSM_ATTESTATION|verifyShamirEd25519QuorumRing:\(Ljava\/nio\/ByteBuffer;\[B\)Z|unsealVsockCid16Frame:\(J\[B\)\[B|\[BLA-JVM-ENCLAVE:|PROTECTED_CANARY_CREDENTIAL=|TRANSPORT_ENDPOINT=|TRANSPORT_QUERY_CONFLICT=|\[COGNITIVE_ARMOR_INTERLOCK|\[[a-z0-9][a-z0-9.-]*\] [A-Z][A-Za-z]+ ?\([A-Za-z0-9_.:-]+\): .+ Remediation: )/i;
 // Walk the constant pool (JVMS §4.4): per-entry tag/offset/size plus a
 // slot-indexed tag map for resolving CONSTANT_Class refs. ok:false when the
 // pool can't be walked to the declared cp_count.
@@ -671,20 +671,42 @@ function jvmClassEnd(buf, cpEnd) {
  *  inside a decoy run are kept — neutralization is surgical.
  *  @param {Buffer} buf @returns {{ buffer: Buffer, report: object }} */
 export function scrubJvm(buf) {
+  // cut the appended shield trailer first, but DON'T return — double-hardened
+  // classes carry BOTH a stuffed decoy constant pool and a trailer, so the
+  // kept region still needs the CP-decoy pipeline below.
   const trailer = cutAtMarker(buf, "BLA_JVM_SHIELD_V1", 1);
-  if (trailer) return { buffer: trailer.buffer, report: { format: "jvm", mode: "trailer", hardened: true, trailerDropped: trailer.cutBytes } };
-  if (buf.length < 10 || buf.readUInt32BE(0) !== 0xcafebabe) return { buffer: buf, report: { format: "jvm", hardened: false } };
+  const base = trailer ? trailer.buffer : buf;
+  const trailerDropped = trailer ? trailer.cutBytes : 0;
+  if (base.length < 10 || base.readUInt32BE(0) !== 0xcafebabe) return { buffer: base, report: { format: "jvm", hardened: trailer != null, ...(trailerDropped ? { trailerDropped } : {}) } };
   // measure every CP entry
-  const { ok, entries, cpEnd } = jvmCpWalk(buf);
-  if (!ok) return { buffer: buf, report: { format: "jvm", hardened: false, note: "unparseable constant pool" } };
+  const { ok, entries, cpEnd } = jvmCpWalk(base);
+  if (!ok) return { buffer: base, report: { format: "jvm", hardened: trailer != null, ...(trailerDropped ? { trailerDropped } : {}), note: "unparseable constant pool" } };
+  // stuffed-stub shape: EVERY CP entry is a decoy Utf8 — BLA rebuilt the
+  // pool of a degenerate class and this_class can't resolve (JVMS fails).
+  // Restore cpCount=1 + whatever body followed the pool, then let the
+  // normal tail logic run on it. Checked before the validity gate — the
+  // shape fails JVMS §4.1 by construction.
+  {
+    const txt = (e) => e.tag === 1 ? base.subarray(e.off + 3, e.off + e.size).toString("utf8") : null;
+    if (entries.length > 0 && entries.every((e) => e.tag === 1 && JVM_DECOY_UTF8.test(txt(e)))) {
+      const classEnd = jvmClassEnd(base, cpEnd);
+      const tail = base.subarray(classEnd);
+      const extraCut = tail.length > 0 && tail.toString("utf8").includes("bla-jvm-enclave-v1") ? tail.length : 0;
+      const rebuilt = Buffer.concat([base.subarray(0, 8), Buffer.from([0, 1]), base.subarray(cpEnd, classEnd)]);
+      return {
+        buffer: rebuilt,
+        report: { format: "jvm", mode: "structural", hardened: true, decoyCpEntriesDropped: entries.length, ...(trailerDropped ? { trailerDropped } : {}), ...(extraCut ? { trailingJsonDropped: extraCut } : {}) },
+      };
+    }
+  }
   // a structurally invalid class (this_class doesn't resolve to a
   // CONSTANT_Class — JVMS §4.1) is a foreign polyglot, not a class file:
   // rebuilding it destroys the container. Fall back to the native-marker
   // cut, else passthrough.
-  if (!jvmClassLooksValid(buf)) {
-    const cut = cutAtMarker(buf, "[BLA-NATIVE-SHIELD-V", 1) ?? cutAtMarker(buf, "[BLA-NATIVE-SHIELD]", 1);
-    if (cut) return { buffer: cut.buffer, report: { format: "jvm", hardened: true, note: "invalid class structure — treated as foreign container", trailerDropped: cut.cutBytes } };
-    return { buffer: buf, report: { format: "jvm", hardened: false, note: "invalid class structure — passthrough" } };
+  if (!jvmClassLooksValid(base)) {
+    const cut = cutAtMarker(base, "[BLA-NATIVE-SHIELD-V", 1) ?? cutAtMarker(base, "[BLA-NATIVE-SHIELD]", 1);
+    if (cut) return { buffer: cut.buffer, report: { format: "jvm", hardened: true, note: "invalid class structure — treated as foreign container", trailerDropped: trailerDropped + cut.cutBytes } };
+    return { buffer: base, report: { format: "jvm", hardened: trailer != null, ...(trailerDropped ? { trailerDropped } : {}), note: "invalid class structure — passthrough" } };
   }
   // decoys are appended contiguously at CP end, all CONSTANT_Utf8, and always
   // led by BLA's fixed head entries. A contiguous run of decoy-vocab entries
@@ -692,7 +714,7 @@ export function scrubJvm(buf) {
   // entries — or decoys sitting mid-pool — can't be cut (renumbering would
   // corrupt every CP reference), so those entries are NEUTRALIZED in place:
   // same-length benign overwrite keeps indices and offsets valid.
-  const utf8Text = (e) => e.tag === 1 ? buf.subarray(e.off + 3, e.off + e.size).toString("utf8") : null;
+  const utf8Text = (e) => e.tag === 1 ? base.subarray(e.off + 3, e.off + e.size).toString("utf8") : null;
   const isHard = (t) => t !== null && JVM_HARD_ANCHOR.test(t);
   const isSoft = (t) => t !== null && JVM_DECOY_UTF8.test(t);
   const texts = entries.map(utf8Text);
@@ -729,29 +751,29 @@ export function scrubJvm(buf) {
     if (tail0.length > 0 && tail0.toString("utf8").includes("bla-jvm-enclave-v1")) extraCut = tail0.length;
     return {
       buffer: extraCut ? out.subarray(0, classEnd0) : out,
-      report: { format: "jvm", mode: "neutralize", hardened: true, decoyCpEntriesNeutralized: neutralized, ...(suspicious.length ? { suspiciousCpEntries: suspicious } : {}), ...(extraCut ? { trailingJsonDropped: extraCut } : {}) },
+      report: { format: "jvm", mode: "neutralize", hardened: true, decoyCpEntriesNeutralized: neutralized, ...(trailerDropped ? { trailerDropped } : {}), ...(suspicious.length ? { suspiciousCpEntries: suspicious } : {}), ...(extraCut ? { trailingJsonDropped: extraCut } : {}) },
     };
   }
   // no decoys: flag ambiguous soft-vocab strings, keep bytes
   if (dropFrom < 0) {
     const suspicious = entries.map((e, i) => [e, i]).filter(([, i]) => isSoft(texts[i])).map(([, i]) => `#${i + 1}`);
-    const classEnd0 = jvmClassEnd(buf, cpEnd);
-    const tail0 = buf.subarray(classEnd0);
+    const classEnd0 = jvmClassEnd(base, cpEnd);
+    const tail0 = base.subarray(classEnd0);
     const extraCut = tail0.length > 0 && tail0.toString("utf8").includes("bla-jvm-enclave-v1") ? tail0.length : 0;
-    if (suspicious.length === 0 && extraCut === 0) return { buffer: buf, report: { format: "jvm", hardened: false } };
+    if (suspicious.length === 0 && extraCut === 0 && !trailer) return { buffer: base, report: { format: "jvm", hardened: false } };
     return {
-      buffer: extraCut ? buf.subarray(0, classEnd0) : buf,
-      report: { format: "jvm", hardened: extraCut > 0, ...(suspicious.length ? { suspiciousCpEntries: suspicious } : {}), ...(extraCut ? { trailingJsonDropped: extraCut } : {}) },
+      buffer: extraCut ? base.subarray(0, classEnd0) : base,
+      report: { format: "jvm", hardened: extraCut > 0 || trailer != null, ...(trailerDropped ? { trailerDropped } : {}), ...(suspicious.length ? { suspiciousCpEntries: suspicious } : {}), ...(extraCut ? { trailingJsonDropped: extraCut } : {}) },
     };
   }
   const decoyEntries = entries.length - dropFrom;
   const decoyStart = entries[dropFrom].off;
-  const classEnd = jvmClassEnd(buf, cpEnd);
+  const classEnd = jvmClassEnd(base, cpEnd);
   // appended attrPayload JSON after class body
   let extraCut = 0;
-  const tail = buf.subarray(classEnd);
+  const tail = base.subarray(classEnd);
   if (tail.length > 0 && tail.toString("utf8").includes("bla-jvm-enclave-v1")) extraCut = tail.length;
-  const rebuilt = Buffer.concat([buf.subarray(0, 10), buf.subarray(10, decoyStart), buf.subarray(cpEnd, classEnd)]);
+  const rebuilt = Buffer.concat([base.subarray(0, 10), base.subarray(10, decoyStart), base.subarray(cpEnd, classEnd)]);
   // decoys in an earlier broken run (before dropFrom) can't be cut without
   // renumbering — neutralize their bytes inside the rebuilt pool instead.
   let neutralized = 0;
@@ -765,7 +787,7 @@ export function scrubJvm(buf) {
   rebuilt.writeUInt16BE(keptSlots + 1, 8);
   return {
     buffer: rebuilt,
-    report: { format: "jvm", mode: "structural", hardened: true, decoyCpEntriesDropped: decoyEntries, trailingJsonDropped: extraCut, ...(neutralized ? { decoyCpEntriesNeutralized: neutralized } : {}) },
+    report: { format: "jvm", mode: "structural", hardened: true, decoyCpEntriesDropped: decoyEntries, ...(trailerDropped ? { trailerDropped } : {}), trailingJsonDropped: extraCut, ...(neutralized ? { decoyCpEntriesNeutralized: neutralized } : {}) },
   };
 }
 

@@ -332,8 +332,8 @@ const simpleBody = (thisIdx = 2, superIdx = 4, attrs = []) => body({ thisIdx, su
     E.utf8("com/enclave/tarpit/StateNode_00_pc_1"),
   ]);
   F["c3c-long-inside-decoy-region.class"] = {
-    buffer: assemble(entries, simpleBody()), expect: "NEUTRALIZED",
-    meta: "Long (tag5) inside marker region -> walker breaks at tag5 -> unparseable; even if walked, every(tag===1) guard would block the cut",
+    buffer: assemble(entries, simpleBody()), expect: "CUT+NEUTRALIZED x1",
+    meta: "Long (tag5) splits the decoy region: #7 neutralized in place (mid-pool), #10 com/enclave/tarpit tail-cuts at CP end — the surgical split is the correct outcome",
   };
 }
 
@@ -465,6 +465,10 @@ for (const [name, fx] of Object.entries(F)) {
   else if (r.report.mode === "neutralize") {
     verdict = `NEUTRALIZED x${r.report.decoyCpEntriesNeutralized}` +
       (r.report.suspiciousCpEntries ? ` flagged=${r.report.suspiciousCpEntries.join(",")}` : "");
+  }
+  else if (r.report.mode === "structural" && r.report.decoyCpEntriesNeutralized > 0) {
+    // mixed: tail-reaching decoys cut, mid-pool decoys neutralized in place
+    verdict = `CUT+NEUTRALIZED x${r.report.decoyCpEntriesNeutralized}`;
   }
   else if (r.report.hardened) {
     // cut happened on a file that was NOT BLA-hardened -> false positive
