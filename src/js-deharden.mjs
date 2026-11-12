@@ -1352,7 +1352,10 @@ export function dehardenJs(source, { filename = "input.js" } = {}) {
       if (mixed) {
         // statement mixes injected machinery with real decls — conservative
         // keep, but surface it so the report doesn't claim a clean sweep.
-        if (hasInjected) report.mixedStatementsKept.push({ type: path.node.type, preview: safeGen(path.node).slice(0, 100) });
+        // capped: an adversarial file could interleave thousands of these.
+        if (hasInjected && report.mixedStatementsKept.length < 200)
+          report.mixedStatementsKept.push({ type: path.node.type, preview: safeGen(path.node).slice(0, 100) });
+        else if (hasInjected) report.mixedStatementsKeptTruncated = true;
         return;
       }
       if (hasInjected) {
