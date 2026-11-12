@@ -23,7 +23,8 @@ export type DetectedKind =
   | "js" | "asar" | "wasm" | "sqlite" | "safetensors" | "gguf" | "native"
   | "dex" | "il2cpp" | "dotnet" | "evm" | "ptx" | "jvm" | "plist" | "pcap"
   | "uf2" | "beam" | "pyc" | "zip" | "py" | "html" | "sourcemap" | "header"
-  | "bunfs-snapshot" | "sidecar-note" | "unknown";
+  | "bunfs-snapshot" | "sidecar-note" | "bla-manifest" | "bla-config"
+  | "unknown";
 
 /** Route an input buffer to a scrubber kind (magic first, ext fallback). */
 export function detect(buf: Buffer, ext: string): DetectedKind;
@@ -80,7 +81,11 @@ export function inspectBunfsSnapshot(buf: Buffer): InspectReport;
 export function bunfsTombstone(): string;
 export function inspectSidecarNote(buf: Buffer): InspectReport;
 export function sidecarNoteTombstone(): string;
-export function inspectBlaManifest(buf: Buffer): InspectReport & { schema?: string; signed?: boolean; runId?: string; artifactsRecorded?: number };
+export function inspectBlaManifest(buf: Buffer): InspectReport & {
+  schema?: string; signed?: boolean; decoy?: boolean;
+  runId?: string; artifactsRecorded?: number; nodesRecorded?: number;
+  domains?: number; weaveTargets?: number; overallStatus?: string;
+};
 export function blaManifestTombstone(schema?: string): string;
 
 // ---- recovery/canonical ----
@@ -107,6 +112,7 @@ export function reconstructSourceMap(
 ): SourceMapRecovery;
 
 export interface RuntimeCounterShield {
+  families: string[];
   fridaScript: string;
   cdpNotes: string;
   teeStubSurface: string;
@@ -156,28 +162,25 @@ export function neutralizePyLiteralMarkers(
   src: string,
   markers: RegExp,
   opts?: { comments?: boolean },
-): { code: string; neutralized: number };
+): { src: string; neutralized: number };
 
 export interface SqliteScore {
   name: string;
-  score: number;
+  decoyScore: number;
   verdict: "drop" | "flag" | "keep";
-  reasons: string[];
+  reason: string;
 }
 export function scoreSqliteObjects(
   objects: Array<{ type: string; name: string; tbl_name?: string; sql?: string }>,
 ): SqliteScore[];
 
-export function beamLoneDecoyScore(chunk: {
-  name: string;
-  payload?: Buffer;
-  position?: number;
-  inDecoyGroup?: boolean;
-}): { score: number; verdict: "drop" | "flag" | "keep"; reason: string };
+export function beamLoneDecoyScore(
+  chunk: Buffer,
+): { score: number; verdict: "drop" | "flag" | "keep"; reason: string };
 
 export function detectOpaqueSeedVariants(
   js: string,
-): Array<{ name: string; kind: string; start: number; end: number }>;
+): Array<{ kind: string; start: number; end: number; evidence: string }>;
 
 // ---- recovery/salvage ----
 export function triagePcapTail(tail: Buffer): {
@@ -203,7 +206,7 @@ export function preserveApkMeta(origLocal: Buffer, origCentral: Buffer): Buffer 
 // ---- evaluator (partial evaluation + corpus digest) ----
 /** Partial evaluator over Babel AST; depth-bounded, poisons on unknown. */
 export function makeEvaluator(constValues?: Map<string, unknown>): {
-  ev: (node: object) => { v: unknown } | unknown;
+  ev: (node: object | null) => { known: true; value: unknown } | { known: false };
 };
 export function computeContainmentCorpusDigest(
   entries: Array<{ coupledAnchorSymbol: unknown; triggerPayload: unknown }>,
