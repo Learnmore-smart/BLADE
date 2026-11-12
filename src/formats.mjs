@@ -69,6 +69,7 @@ export function scrubAsar(buf, opts = {}) {
   const dirsKept = []; // real directory nodes (materialize even when empty)
   const unpackedExternals = []; // {path, content} — caller writes <out>.unpacked/
   const mapMembersReconstructed = []; // honey-map members replaced by identity maps
+  const malformedMembers = []; // out-of-bounds/coerced offset+size pairs
   const dropped = [];
   (function walk(node, prefix) {
     // `files` may be a non-object (malformed input) — arrays still enumerate
@@ -98,9 +99,15 @@ export function scrubAsar(buf, opts = {}) {
         kept.push({ path, entry: ent, content: null, unpacked: true, external: ext });
         continue;
       }
-      const off = dataOffset + (Number(ent.offset) >>> 0);
-      const size = Number(ent.size) >>> 0;
-      const content = raw.subarray(off, off + size);
+      const rawOff = Number(ent.offset), rawSize = Number(ent.size);
+      // hostile coercion: NaN→0, negatives/floats wrap via >>>0 — only accept
+      // real non-negative safe integers inside the data region.
+      const off = Number.isSafeInteger(rawOff) && rawOff >= 0 ? dataOffset + rawOff : NaN;
+      const size = Number.isSafeInteger(rawSize) && rawSize >= 0 ? rawSize : NaN;
+      const inBounds = Number.isSafeInteger(off) && Number.isSafeInteger(size) &&
+        off >= dataOffset && off + size <= raw.length;
+      if (!inBounds) malformedMembers.push(path);
+      const content = inBounds ? raw.subarray(off, off + size) : Buffer.alloc(0);
       // `.map` members: BLA replaces every one wholesale with a honey map
       // (enclave://tee-runtime sourceRoot + canary GUID). A honey map member
       // is 100% manufactured content — replace with a reconstructed identity
@@ -172,7 +179,8 @@ export function scrubAsar(buf, opts = {}) {
         // self-contained for offline analysis while `unpacked:true` +
         // recomputed integrity preserve the original external semantic.
         const content = f.external;
-        const blockSize = f.entry.integrity?.blockSize || 4 * 1024 * 1024;
+        const bs = f.entry.integrity?.blockSize;
+        const blockSize = (Number.isSafeInteger(bs) && bs > 0) ? bs : 4 * 1024 * 1024;
         const blocks = [];
         for (let p = 0; p < content.length; p += blockSize) {
           blocks.push(createHash("sha256").update(content.subarray(p, p + blockSize)).digest("hex"));
@@ -261,6 +269,7 @@ export function scrubAsar(buf, opts = {}) {
       decoyEntriesDropped: dropped.length,
       droppedSample: dropped.slice(0, 4).map((p) => p.slice(0, 80)),
       ...(mapMembersReconstructed.length ? { mapMembersReconstructed } : {}),
+      ...(malformedMembers.length ? { malformedMembers: malformedMembers.slice(0, 8), note: "out-of-bounds member offset/size — content zeroed" } : {}),
       innerJsDehardened: jsReports.length,
       jsDetails: jsReports.map((r) => ({
         file: r.filename, bytesIn: r.bytesIn, bytesOut: r.bytesOut, strings: r.recoveredStrings.length,
@@ -315,9 +324,17 @@ export function scrubWasm(buf) {
   }
   const sections = [];
   let off = 8;
+  let malformedTail = false;
   while (off < buf.length) {
     const id = buf[off++];
     const [size, after] = readU32Leb(buf, off);
+    if (after + size > buf.length) {
+      // leb desync or a declared size that overruns the file — surface it
+      // instead of silently swallowing the tail into a wrong payload.
+      malformedTail = true;
+      sections.push({ id, size, payload: buf.subarray(Math.min(after, buf.length), buf.length), headerStart: off - 1 });
+      break;
+    }
     sections.push({ id, size, payload: buf.subarray(after, Math.min(buf.length, after + size)), headerStart: off - 1 });
     off = after + size;
   }
@@ -404,6 +421,7 @@ export function scrubWasm(buf) {
       duplicateExportsDropped: droppedDuplicateExports,
       exportsKept: keptExports,
       ...(exportNameRecovery?.length ? { exportNamesRecovered: exportNameRecovery } : {}),
+      ...(malformedTail ? { malformedTail: true, note: "section size overran file — tail clamped to real bytes" } : {}),
     },
   };
 }

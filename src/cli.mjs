@@ -7,7 +7,7 @@
 //
 // All processing is local; nothing is uploaded.
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { basename, dirname, extname, join } from "node:path";
+import { basename, dirname, extname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { dehardenJs, looksBlaHardened } from "./js-deharden.mjs";
 import { scrubAsar, scrubWasm, scrubSqlite, scrubSafetensors, scrubGguf } from "./formats.mjs";
@@ -58,7 +58,15 @@ function main() {
   const quiet = args.includes("--quiet");
   const verbose = args.includes("--verbose");
   const dryRun = args.includes("--dry-run");
-  const writeOut = dryRun ? () => {} : writeFileSync;
+  const writeOut = dryRun ? () => {} : (p, c) => {
+    try {
+      mkdirSync(dirname(p), { recursive: true });
+      writeFileSync(p, c);
+    } catch (e) {
+      console.error(`blade: cannot write ${p}: ${e.code ?? e.message}`);
+      process.exit(2);
+    }
+  };
   const VALUE_FLAGS = new Set(["-o", "--report", "--format"]);
   const FLAG_SET = new Set(["-o", "--report", "--format", "--quiet", "--verbose", "--dry-run", "--help", "-h", "--version", "-"]);
   for (const a of args) {
@@ -75,7 +83,12 @@ function main() {
       process.exit(2);
     }
   }
-  const input = args.find((a, i) => (a === "-" || !a.startsWith("-")) && !VALUE_FLAGS.has(args[i - 1]));
+  const positionals = args.filter((a, i) => (a === "-" || !a.startsWith("-")) && !VALUE_FLAGS.has(args[i - 1]));
+  if (positionals.length > 1) {
+    console.error(`blade: unexpected extra input '${positionals[1]}' — one artifact per run`);
+    process.exit(2);
+  }
+  const input = positionals[0];
   if (!input) {
     console.error(USAGE);
     process.exit(2);
@@ -92,6 +105,9 @@ function main() {
     console.error(`blade: cannot read ${input}: ${e.code ?? e.message}`);
     process.exit(2);
   }
+  // Hash the pristine input NOW — some scrubbers (native trailers) mutate the
+  // buffer in place, so hashing after dispatch would report corrupted bytes.
+  const inputSha256 = createHash("sha256").update(buf).digest("hex");
   const ext = stdin ? "" : extname(input).toLowerCase();
   const KNOWN_KINDS = new Set(["js", "asar", "wasm", "sqlite", "safetensors", "gguf", "native", "dex", "il2cpp", "dotnet", "evm", "ptx", "jvm", "plist", "pcap", "pcapng", "uf2", "beam", "pyc", "zip", "py", "html", "sourcemap", "header", "bunfs-snapshot", "sidecar-note", "bla-manifest"]);
   const KIND_ALIASES = { pcapng: "pcap" }; // same scrubber handles both magics
@@ -117,6 +133,14 @@ function main() {
     process.exit(2);
   }
   const output = oIdx !== -1 ? args[oIdx + 1] : input.replace(/(\.[^.]*)?$/, ".cleaned$1");
+  // --report must not clobber the artifact or the input being analyzed.
+  if (rIdx !== -1 && args[rIdx + 1] !== "-") {
+    const rp = resolve(args[rIdx + 1]);
+    if (rp === resolve(input) || rp === resolve(output)) {
+      console.error(`blade: --report path '${args[rIdx + 1]}' collides with input/output — choose a separate report path`);
+      process.exit(2);
+    }
+  }
   // Windows reserved device names: `-o nul`/`NUL.txt`/`con` creates an
   // undeletable file or writes to the console device. Reject stem matches.
   {
@@ -142,16 +166,29 @@ function main() {
     const src = buf.toString("utf8");
     const r = dehardenJs(src, { filename: basename(input) });
     report = { format: "js", ...r.report };
-    writeOut(output, r.code);
+    // passthrough must be byte-exact — re-encoding the utf8 string would
+    // silently damage non-UTF8 payloads (latin-1 bytes, UTF-16 blobs).
+    writeOut(output, r.code === src ? buf : r.code);
     if (!r.report.hardened) report.note = "no BLA markers found — passthrough";
   } else if (kind === "asar") {
     // `unpacked` entries live in the sibling <input>.unpacked/ dir — feed them
     // in for integrity checks and re-emit whatever survives to
     // <output>.unpacked/.
     const extRoot = `${input}.unpacked`;
+    // archive member paths are attacker-controlled — `../`, absolute and
+    // drive-letter forms must never escape <input>.unpacked/ or the output dir.
+    const safeMemberPath = (p) => {
+      if (typeof p !== "string" || p.length === 0) return null;
+      if (p.startsWith("/") || /^[a-zA-Z]:[\\/]/.test(p) || p.startsWith("\\\\")) return null;
+      const parts = p.split(/[\\/]+/);
+      if (parts.some((s) => s === ".." || s === "")) return null;
+      return parts.join("/");
+    };
     const r = scrubAsar(buf, {
       getExternal: (p) => {
-        const fp = join(extRoot, p);
+        const sp = safeMemberPath(p);
+        if (!sp) return null;
+        const fp = join(extRoot, sp);
         try { return existsSync(fp) ? readFileSync(fp) : null; } catch { return null; }
       },
     });
@@ -159,7 +196,9 @@ function main() {
     writeOut(output, r.buffer);
     if (r.unpackedExternals?.length) {
       for (const u of r.unpackedExternals) {
-        const fp = join(`${output}.unpacked`, u.path);
+        const sp = safeMemberPath(u.path);
+        if (!sp) { report.unpackedPathBlocked = (report.unpackedPathBlocked ?? 0) + 1; continue; }
+        const fp = join(`${output}.unpacked`, sp);
         if (!dryRun) mkdirSync(dirname(fp), { recursive: true });
         writeOut(fp, u.content);
       }
@@ -241,7 +280,7 @@ function main() {
   report.input = input;
   report.output = output;
   report.format = kind;
-  report.inputSha256 = createHash("sha256").update(buf).digest("hex");
+  report.inputSha256 = inputSha256;
   report.inputSize = buf.length;
 
   // Signature-free anomaly scoring — surfaces structures typical of BLA even

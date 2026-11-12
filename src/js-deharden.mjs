@@ -904,7 +904,14 @@ export function dehardenJs(source, { filename = "input.js" } = {}) {
     if (typeof v === "string") return t.stringLiteral(v);
     if (typeof v === "boolean") return t.booleanLiteral(v);
     if (typeof v === "number" && Number.isFinite(v)) {
-      try { return t.valueToNode(v); } catch { return null; }
+      try {
+        const lit = t.valueToNode(v);
+        // mask/crypto constants read far better in hex — emit 0x… for large ints
+        if (lit?.type === "NumericLiteral" && Number.isInteger(v) && (v > 0xffff || v < -0xffff)) {
+          lit.extra = { raw: (v < 0 ? "-0x" : "0x") + Math.abs(v).toString(16), rawValue: v };
+        }
+        return lit;
+      } catch { return null; }
     }
     return null;
   };
@@ -1033,6 +1040,13 @@ export function dehardenJs(source, { filename = "input.js" } = {}) {
       Expression(path) {
         const n = path.node;
         if (LITERAL_TYPES.has(n.type) || n.type === "ConditionalExpression" || n.type === "IfStatement") return;
+        // `void 0`/`void "x"` — literal arg folds to plain `undefined`
+        // (identifiers/arrays/sequences stay: those are void-anchor machinery).
+        if (n.type === "UnaryExpression" && n.operator === "void" && LITERAL_TYPES.has(n.argument.type)) {
+          path.replaceWith(t.identifier("undefined"));
+          changed = true;
+          return;
+        }
         // skip identifiers bound by constValues — keep names readable
         if (n.type === "Identifier" && constValues.has(n.name)) return;
         // never fold in a write position — replacing `x`/`obj.m`/`a[i]` on

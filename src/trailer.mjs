@@ -72,7 +72,7 @@ function peContentEnd(buf) {
   const nsec = buf.readUInt16LE(coff + 2);
   const optSize = buf.readUInt16LE(coff + 16);
   const opt = coff + 20;
-  if (opt + optSize > buf.length) return -1;
+  if (opt + optSize > buf.length || opt + 2 > buf.length) return -1;
   const magic = buf.readUInt16LE(opt);
   // security directory: data dir idx 4 — RVA 96 (PE32) / 112 (PE32+) into opt
   const secDirOff = opt + (magic === 0x20b ? 112 : 96) + 8 * 4;
@@ -316,8 +316,8 @@ export function scrubNative(buf) {
     let shnum = out.readUInt16LE(60);
     let shstrndx = out.readUInt16LE(62);
     // extended numbering: real counts live in section[0] fields
-    if (shnum === 0 && shoff > 0 && shentsize >= 64) shnum = Number(out.readBigUInt64LE(shoff + 32));
-    if (shstrndx === 0xffff && shoff > 0 && shentsize >= 64) shstrndx = out.readUInt32LE(shoff + 40);
+    if (shnum === 0 && shoff > 0 && shentsize >= 64 && shoff + 40 <= out.length) shnum = Number(out.readBigUInt64LE(shoff + 32));
+    if (shstrndx === 0xffff && shoff > 0 && shentsize >= 64 && shoff + 44 <= out.length) shstrndx = out.readUInt32LE(shoff + 40);
     if (shoff > 0 && shnum > 0 && shoff + shnum * shentsize <= out.length && shentsize >= 64) {
       const sec = (i) => ({
         nameOff: out.readUInt32LE(shoff + i * shentsize),
@@ -837,7 +837,7 @@ export function scrubPlistXml(text) {
   out = out.replace(new RegExp(`[ \\t]*<key>${BLA_KEY}<\\/key>${GAP}<(true|false)\\/>${GAP}`, "g"), () => { removedKeys++; return ""; });
   // nested-plist values: <key>BLA…</key> followed by a whole <dict>…</dict>
   // or <array>…</array>
-  out = out.replace(new RegExp(`[ \\t]*<key>${BLA_KEY}<\\/key>${GAP}<(dict|array)>[\\s\\S]*?<\\/\\2>${GAP}`, "g"), () => { removedKeys++; return ""; });
+  out = out.replace(new RegExp(`[ \\t]*<key>${BLA_KEY}<\\/key>${GAP}<(dict|array)>[\\s\\S]*?<\\/\\1>${GAP}`, "g"), () => { removedKeys++; return ""; });
   const hardened = removedKeys > 0 || out !== text;
   if (hardened && !out.endsWith("\n")) out += "\n";
   // keep+flag: surviving BLA-prefixed keys whose names don't match the known
@@ -1238,7 +1238,8 @@ function marshalSkip(buf, pos, layout, depth = 0) {
   if (depth > 200 || pos >= buf.length) return -1;
   const type = buf[pos] & 0x7f;
   let p = pos + 1;
-  const u32 = () => { const v = buf.readUInt32LE(p); p += 4; return v; };
+  // -1 on truncated length prefix — callers propagate the failure.
+  const u32 = () => { if (p + 4 > buf.length) return -1; const v = buf.readUInt32LE(p); p += 4; return v; };
   const seq = (n) => { for (let i = 0; i < n; i++) { p = marshalSkip(buf, p, layout, depth + 1); if (p < 0) return -1; } return p; };
   switch (type) {
     case 0x30: case 0x4e: case 0x46: case 0x54: case 0x2e: case 0x53: // NULL None F T . StopIter
@@ -1249,12 +1250,12 @@ function marshalSkip(buf, pos, layout, depth = 0) {
     case 0x78: case 0x79: return p + 16; // 'x'/'y' complex
     case 0x66: { const n = buf[p]; return p + 1 + n; } // 'f' text float
     case 0x73: case 0x61: case 0x41: case 0x75: case 0x74: case 0x52: { // s a A u t R
-      const n = u32(); return n > buf.length - p ? -1 : p + n;
+      const n = u32(); return n < 0 || n > buf.length - p ? -1 : p + n;
     }
     case 0x7a: case 0x5a: { const n = buf[p]; return p + 1 + n; } // z Z short ascii
-    case 0x28: { const n = u32(); return seq(n); }   // '(' tuple
+    case 0x28: { const n = u32(); return n < 0 ? -1 : seq(n); }   // '(' tuple
     case 0x29: { const n = buf[p]; p += 1; return seq(n); } // ')' small tuple
-    case 0x5b: case 0x3c: case 0x3e: { const n = u32(); return seq(n); } // [ < >
+    case 0x5b: case 0x3c: case 0x3e: { const n = u32(); return n < 0 ? -1 : seq(n); } // [ < >
     case 0x7b: { // '{' dict until NULL
       for (;;) { const t = buf[p] & 0x7f; p = marshalSkip(buf, p, layout, depth + 1); if (p < 0) return -1; if (t === 0x30) return p; p = marshalSkip(buf, p, layout, depth + 1); if (p < 0) return -1; }
     }
@@ -1365,7 +1366,7 @@ function weaveScan(buf, pos, layout, cuts, patches, depth = 0) {
   if (type === 0x28 || type === 0x29 || type === 0x5b || type === 0x3c || type === 0x3e) {
     let p, count, countPos, countSize;
     if (type === 0x29) { countPos = pos + 1; countSize = 1; count = buf[countPos]; }
-    else { countPos = pos + 1; countSize = 4; count = buf.readUInt32LE(countPos); }
+    else { countPos = pos + 1; countSize = 4; if (countPos + 4 > buf.length) return null; count = buf.readUInt32LE(countPos); }
     p = countPos + countSize;
     const items = [];
     for (let i = 0; i < count; i++) {

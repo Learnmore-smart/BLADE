@@ -1027,6 +1027,19 @@ export function recoverJsNames(code, report) {
     out.renames.push({ from: name, to: newName, confidence: cand.confidence, evidence: cand.evidence });
   }
 
+  // post-rename polish: `{ foo: foo }` → `{ foo }` — renames can collapse a
+  // property onto its key; Babel won't shorthand unless the flag is set.
+  traverse(ast, {
+    ObjectProperty(path) {
+      const p = path.node;
+      if (!p.computed && !p.shorthand &&
+          p.key?.type === "Identifier" && p.value?.type === "Identifier" &&
+          p.key.name === p.value.name) {
+        p.shorthand = true;
+      }
+    },
+  });
+
   try {
     out.code = generate(ast, { comments: true, compact: false }).code;
   } catch {
