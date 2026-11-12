@@ -23,9 +23,19 @@ jobs:
         run: node scripts/verify.mjs
       - name: detect routing
         run: node scripts/test-detect.mjs
+      - name: detect corpus (route + cli)
+        run: node test-fixtures/adversarial/detect/run.mjs
       - name: robustness (crash-resistance)
         run: node scripts/robustness.mjs
+      - name: unit suites (anomaly/evaluator/name-recovery/precision/canonical)
+        run: npm run test:unit --silent
+      - name: JS semantic fuzzer (400 seeded rounds)
+        run: node scripts/fuzz-js.mjs
       - name: JS adversarial suite
         run: node test-fixtures/adversarial/js/run-adversarial.mjs
       - name: BLA 3.2.4 regression suite
         run: node test-fixtures/adversarial/js/v324/run.mjs
+      - name: asar adversarial suite
+        run: node test-fixtures/adversarial/asar/run.mjs
+      - name: idempotency
+        run: node scripts/idempotency.mjs
