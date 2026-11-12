@@ -735,9 +735,40 @@ stealth/balanced/maximum/bankrupt + the opt-in flag pass
 New ceilings documented in README: multi-harden WASM name destruction,
 ASAR `integrity` headers added by `harden`, BLA re-protect refusals.
 
+### Round 11 — nested-member maps + provenance closeout
+
+- **ASAR `.map` members**: BLA's archive shield replaces every `.map`
+  member wholesale with a honey map (`sourceRoot: "enclave://tee-runtime/"`,
+  canary GUID, `invokeHardwareEnclave` sources). The member filter only
+  checked content markers, so honey maps sailed through. Members are now
+  routed through the same contract as standalone `.map` files: JS members
+  deharden in a pre-pass, then each honey map is rebuilt as an identity
+  map over its sibling's *final* bytes (matching line count, real code in
+  `sourcesContent`, `x_blade_note` documenting wholesale replacement).
+  Genuine maps pass byte-exact. Report gains `mapMembersReconstructed`;
+  `t8-honey-map.asar` fixture + a runner-wide sweep fail any surviving
+  `.map` member carrying `enclave://` provenance.
+- **Provenance sidecars — complete**: every file BLA emits now routes:
+  `.bunfs-snapshot`, `.bla-sidecar.v1.json`, `.bla/sidecar.v1.json`,
+  `.bla-manifest.json` (incl. ed25519-signed), `.blarc`/`bla.config.json`,
+  emit-headers sources, honey maps — and now `bla-harden-summary.json`
+  (schema `bla-harden-summary/vN`), tombstoned with `runId` +
+  `artifactsRecorded` surfaced in the report.
+- **Opt-in flags, live-verified**: `--llm-directives` (risky template
+  pools — compliance notices, dual-use vocabulary — live entirely inside
+  removed tagged decls; 143 KB → 1.3 KB, exec parity), `--self-seal`,
+  `--weave-decoys` (Python **byte-exact** incl. `python-ast-weave`
+  customer-def inserts and `.pyc` `co_consts` TYPE_CODE weave),
+  `--wasm-preserve-exports` (operator-preserved ABI names flow through;
+  non-listed names stay at the documented ceiling).
+- **Residue sweep**: every cleaned artifact across all four intensities
+  scans clean of `enclave`/`BLA-`/`canary`/`tee-runtime`/machinery
+  strings — the only remaining hits are BLADE's own `x_blade_*`
+  annotations.
+
 ## Verification
 
-`node scripts/verify.mjs` — **37 checks, all passing**:
+`node scripts/verify.mjs` — **38 checks, all passing**:
 - JS parse + behavioral equivalence (exports, IPC handlers, channel strings,
   store effects) against the plain originals.
 - Canonical API names present in cleaned output.
