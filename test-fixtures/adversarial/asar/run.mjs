@@ -244,6 +244,13 @@ function verifyCase(name, inputBuf, manifest, fixturePath = null) {
       res.findings.push(`[note] decoy-ns entry still present: ${p}`);
     }
   }
+  // .map members: BLA honey maps (enclave:// provenance) must be reconstructed,
+  // not copied through; a surviving map carrying honey markers is residue
+  for (const [p, e] of parsed.entries) {
+    if (p.endsWith(".map") && e.kind === "file" && /enclave:\/\/|invokeHardwareEnclave/.test(e.content.toString("utf8"))) {
+      bump("INTEGRITY-BROKEN", `${p}: BLA honey-map residue survived cleaning`);
+    }
+  }
   return res;
 }
 

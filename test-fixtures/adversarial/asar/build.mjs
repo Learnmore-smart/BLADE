@@ -512,4 +512,55 @@ write("t6d-tostring-dir.asar", packAsar([
   });
 }
 
+// ============================================================
+// T8: honey source-map member. BLA replaces real .map members with
+// enclave:// honey maps; the cleaner must reconstruct an identity map,
+// not copy the honey bytes through. A genuine map beside it must
+// survive byte-identical.
+// ============================================================
+{
+  const appJs = F(`"use strict";
+function checksum(s) { let h = 0x811c9dc5; for (const c of s) { h ^= c.codePointAt(0); h = Math.imul(h, 0x01000193) >>> 0; } return h; }
+module.exports = { checksum };
+`);
+  const honeyMap = F(JSON.stringify({
+    version: 3,
+    file: "app.js",
+    sourceRoot: "enclave://tee-runtime/",
+    sources: ["enclave/hardware-tee-bridge.js", "enclave/shards/ring0-slot-07.js"],
+    sourcesContent: ["// sealed payload\ninvokeHardwareEnclave();\n"],
+    names: ["invokeHardwareEnclave"],
+    mappings: "AAAA;ACAA;ADAA",
+  }));
+  const realMap = F(JSON.stringify({
+    version: 3,
+    file: "vendor.js",
+    sources: ["vendor.ts"],
+    names: ["parseHeader", "payload"],
+    mappings: "AAAA,SAASA,WAAT,GAAoB",
+  }));
+  const vendor = F("export function parseHeader(b){return b[0];}\n");
+  const { buf } = packAsar([
+    { path: "package.json", content: F(PKG) },
+    { path: "app.js", content: appJs },
+    { path: "app.js.map", content: honeyMap, expect: "survive" },
+    { path: "vendor.js", content: vendor },
+    { path: "vendor.js.map", content: realMap },
+    { path: "enclave/shards/ring0-slot-00.json", content: F("{}"), role: "decoy", expect: "dropped" },
+  ]);
+  write("t8-honey-map.asar", {
+    buf,
+    manifest: {
+      entries: {
+        "package.json": { role: "real", expect: "bytes", expectSha256: sha256(F(PKG)) },
+        "app.js": { role: "real", expect: "bytes", expectSha256: sha256(appJs) },
+        "app.js.map": { role: "real", expect: "survive" },
+        "vendor.js": { role: "real", expect: "bytes", expectSha256: sha256(vendor) },
+        "vendor.js.map": { role: "real", expect: "bytes", expectSha256: sha256(realMap) },
+        "enclave/shards/ring0-slot-00.json": { role: "decoy", expect: "dropped" },
+      },
+    },
+  });
+}
+
 console.log("fixtures written to", OUT);
