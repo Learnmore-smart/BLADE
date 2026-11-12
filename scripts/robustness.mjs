@@ -71,6 +71,28 @@ function exerciseAll(label, buf, ext = "") {
 
 for (const [label, buf] of degenerates) exerciseAll(`degenerate:${label}`, buf);
 
+// ---- crash-regression probes (each was a real throw before its fix) ----
+{
+  // The conflict guard lives past the raw-text marker prefilter — a file
+  // must carry real BLA evidence to reach traverse (files without it
+  // passthrough before parse and can never crash). Build probes by
+  // appending the crash shape to real hardened content.
+  const hard = readFileSync(path.join(ROOT, "test-fixtures/adversarial/js/v324/app.hardened.js"), "utf8");
+  const probe = (label, tail, wantConflict) => check(`crash-probe:${label}: js`, () => {
+    const r = dehardenJs(hard + tail);
+    const has = Boolean(r.report.note?.includes("conflicting"));
+    if (has !== wantConflict) throw new Error(`conflict note ${has ? "fired" : "missing"} (want ${wantConflict}): ${r.report.note ?? "-"}`);
+  });
+  // duplicate block-scoped decls: parse-tolerated but traverse() threw
+  // TypeError("Duplicate declaration") pre-fix.
+  probe("dup-block-scoped", "\nconst Q=1;\nconst Q=2;\nconst Q=3;\n", true);
+  // var-dup is legal JS and must NOT trip the conflict guard
+  probe("var-dup-legal", "\nvar V=1;\nvar V=2;\n", false);
+  // nested-block + destructured-pattern dup shapes
+  probe("nested-dup", "\nif(1){ let V=1; let V=2; }\n", true);
+  probe("destructure-dup", "\nconst {a,b}={};\nconst [a]=[];\n", true);
+}
+
 // ---- format-specific malformed variants: headers that route to a scrubber
 // but whose record structure is degenerate — the owning scrubber must not
 // crash (pcapng block walk and BE pcap records especially).
