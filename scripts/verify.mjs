@@ -7,7 +7,7 @@
 //   - GGUF magic + KV parseable
 //   - ASAR legit entries survive, inner JS dehardened, integrity consistent
 // Usage: node scripts/verify.mjs
-import { mkdirSync, readFileSync, readdirSync, existsSync } from "node:fs";
+import { mkdirSync, readFileSync, readdirSync, existsSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { DatabaseSync } from "node:sqlite";
@@ -240,6 +240,21 @@ check("honey map flagged unrecoverable (passthrough)", () => {
   const r = JSON.parse(readFileSync(path.join(CLEAN, "app.js.map.report.json"), "utf8"));
   assert.equal(r.unrecoverable, true);
   assert.equal(r.honeyMap, true);
+});
+
+check("genuine map passes through byte-exact (no reconstruction)", () => {
+  const genuine = JSON.stringify({
+    version: 3, file: "real.js", sources: ["src/real.ts"],
+    sourcesContent: ["const x: number = 1;"], names: ["x"],
+    mappings: "AAAA,IAAM,CAAC,GAAY,CAAC",
+  });
+  const inp = path.join(CLEAN, "genuine.js.map"), out = path.join(CLEAN, "genuine-out.js.map");
+  writeFileSync(inp, genuine);
+  execFileSync(process.execPath, [path.join(ROOT, "src", "cli.mjs"), inp, "-o", out, "--report", out + ".report.json"], { stdio: "pipe" });
+  assert.equal(readFileSync(out, "utf8"), genuine, "genuine map bytes must be preserved");
+  const r = JSON.parse(readFileSync(out + ".report.json", "utf8"));
+  assert.equal(r.honeyMap, false);
+  assert.equal(r.action, "passthrough");
 });
 
 // ---- 12. unit-level checks on scrubber edge paths
