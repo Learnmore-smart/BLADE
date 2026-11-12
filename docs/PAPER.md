@@ -190,6 +190,23 @@ the host) — recorded as an environmental limitation, not hidden.
   emitters need new signatures — the architecture makes each addition a
   localized, testable change.
 - Recovery ceilings in §5 are inherent, not engineering debt.
+- The counter-shield sidecars are analyst aids, not de-hardening: the
+  TEE-stub global sweep is authoritative only for script-carrier bundles
+  (module-scoped CJS machinery is invisible to it), and the emitted
+  Frida/CDP notes carry documented platform assumptions (64-bit
+  `timeval`, ~10 MHz QPF, `remote-debugging` command-line residue).
+
+## 8a. Self-hardening
+
+Because hardened artifacts are attacker-controlled bytes, BLADE treats
+its own parsers as an attack surface: archive member paths are sanitized
+in both directions (traversal rejected), every binary parser
+bounds-checks before reading (truncated ELF/PE/PYC/ASAR produce
+controlled reports rather than `RangeError` escapes), integrity
+`blockSize` values are validated against runaway loops, input hashes are
+computed before any in-place mutation, and unhardened passthrough is
+byte-exact. A 270-check robustness suite feeds deliberately malformed
+inputs to every parser and requires reports, not crashes.
 
 ## 9. Related work
 

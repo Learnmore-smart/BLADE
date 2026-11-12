@@ -775,6 +775,67 @@ ASAR `integrity` headers added by `harden`, BLA re-protect refusals.
   `electron-main` entrypoint, `integrity_contradictions: []`, and the
   identical `evidence_id` reproducibly after server recovery.
 
+### Round 12 — hostile-input hardening (BLADE as the attack surface)
+
+The fourth audit flipped the threat model: hardened artifacts are
+attacker-controlled input, so BLADE itself must not be exploitable.
+Every confirmed crash/escape path was closed:
+
+- **Path traversal — closed.** ASAR `files[].name` (`.unpacked` member
+  paths) is sanitized in both directions: reads under `<input>.unpacked/`
+  and writes under `<output>.unpacked/` reject `..`, absolute paths,
+  drive-letter prefixes, and empty segments.
+- **RangeError crashes — closed.** ELF extended section numbering
+  (`shoff+44>len`), PE optional-header magic at EOF, PYC `marshalSkip`
+  truncated `u32` reads, and `weaveScan` tuple/list/set/frozenset counts
+  all bounds-checked; malformed inputs now produce controlled
+  reports instead of uncaught exceptions.
+- **Runaway loops — closed.** ASAR `integrity.blockSize` must be a
+  finite positive integer ≤ 64 MiB (fractional/zero values previously
+  caused unbounded iteration); member `offset`/`size` are coerced and
+  range-validated before slicing.
+- **Report truthfulness — fixed.** `inputSha256` is now computed on the
+  pristine buffer before dispatch (native scrubbing mutates the buffer
+  in place, so the old post-scrub hash described corrupted bytes);
+  `seed.value` is flagged `approximate:true` when the seed base is
+  unresolvable (parity-only estimate).
+- **Byte-exact passthrough — fixed.** Unhardened `.js` writes the raw
+  input buffer rather than the UTF-8 round-trip, so latin-1/UTF-16
+  payloads are no longer silently re-encoded.
+- **CLI safety — fixed.** Extra positional args rejected; `--report`
+  cannot resolve to the input or output path; `-o` writes create parent
+  dirs and report failures cleanly; Windows reserved device names
+  (`NUL`/`CON`/…) rejected as output paths.
+- **plist nested-key residue — fixed.** A `\2` backreference that should
+  have been `\1` meant `<key>BLA…</key><dict>…</dict>` blocks survived;
+  they now match and are removed.
+- **WASM malformed sections — surfaced.** Truncated/oversized ULEB
+  lengths are reported as notes instead of silently desyncing the
+  section walk.
+
+### Remaining honest caveats (counter-shield sidecars)
+
+These are documentation-level limitations of the optional
+`*.blade-counter.js` / `*.blade-cdp-notes.md` / `*.blade-tee-stub.js`
+artifacts BLADE emits to help analysts probe survivors — not
+de-hardening bugs:
+
+- The TEE-stub global sweep is authoritative only for *script-carrier*
+  bundles; in CJS modules the machinery functions are module-scoped and
+  the sweep is a no-op (the notes now say so).
+- The Frida `strstr` hook tests only the needle argument (fixed), but
+  `gettimeofday`/`mach_absolute_time`/QPC pinning assume 64-bit
+  `timeval`, tick→ns constants, and ~10 MHz QPF respectively — stated
+  assumptions, harmless for behavior pinning.
+- `--remote-debugging-port=0`/`--remote-debugging-pipe` still leave a
+  `remote-debugging` substring in the command line; truly clean
+  inspection needs `inspector.open(0)` via `--require` preload or
+  `SIGUSR1` post-launch (documented in the CDP notes).
+- `sweepInjectedCalls` removes a statement only when every non-generic
+  reference inside it resolves to injected machinery; a statement mixing
+  `machinery(), real()` operands is *kept* deliberately (conservative —
+  a note flags it rather than risking real-code loss).
+
 ## Verification
 
 `node scripts/verify.mjs` — **38 checks, all passing**:

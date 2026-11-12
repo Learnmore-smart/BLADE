@@ -5,6 +5,22 @@ All notable changes to BLADE are documented here. The format follows
 
 ## [Unreleased]
 
+### Security
+
+- Self-hardening pass over every parser and the CLI (hostile artifacts are
+  attacker-controlled input): ASAR `.unpacked` member paths sanitized in
+  both directions (traversal/absolute/drive-letter rejected); ELF extended
+  section numbering, PE optional-header magic, PYC `marshalSkip`/`weaveScan`
+  counts all bounds-checked — malformed inputs now yield controlled reports
+  instead of `RangeError` crashes; ASAR `integrity.blockSize` validated
+  against runaway loops; `inputSha256` hashed on pristine bytes before any
+  in-place mutation; unhardened `.js` passthrough is byte-exact (no UTF-8
+  re-encode); `--report` cannot clobber input/output; extra positional
+  args rejected; `-o` writes create dirs and report errors; Windows
+  reserved device names rejected as output paths; plist nested-key removal
+  backreference fixed (`\2`→`\1`); malformed WASM section lengths surfaced
+  as notes instead of silent desync.
+
 ### Added
 
 - CI workflow running the core verification plus the JS and BLA 3.2.4

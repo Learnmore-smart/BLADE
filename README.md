@@ -80,7 +80,7 @@ As a library: `import { detect, scrubNative, dehardenJs } from "blade"` (see `sr
 ```bash
 node scripts/make-fixtures.mjs                                        # plain fixtures
 npx bla-agents protect <file> --intensity bankrupt --output test-fixtures/hardened
-node scripts/verify.mjs                                               # 37 end-to-end checks
+node scripts/verify.mjs                                               # 39 end-to-end checks
 node scripts/verify-all.mjs                                            # consolidated 26-suite matrix
 node scripts/live-matrix.mjs                                          # real bla-agents end-to-end (needs vendor/bla)
 node test-fixtures/adversarial/<suite>/run*.mjs                       # per-format adversarial harnesses
@@ -285,6 +285,8 @@ For BLA's dominant append-only trailer strategy — yes, verified across 16 form
 
 **Will it break on the next BLA version?**
 Signatures are keyed to `bla-agents@3.2.4` (3.2.2 and earlier outputs remain supported) but defense-in-depth exists: `scoreStructuralAnomaly` flags unknown floods, `detectOpaqueSeedVariants` catches drifted predicate shapes, keep+flag defaults mean graceful degradation, not silent passthrough of poison.
+
+BLADE itself is also hardened against the hostile input it processes — hardened artifacts are attacker-controlled bytes. Archive member paths are sanitized (no `../` escapes in either direction), all binary parsers bounds-check before reading (no `RangeError` crashes on truncated ELF/PE/PYC/ASAR), integrity `blockSize` values are validated to prevent runaway loops, the report's `inputSha256` hashes pristine input before any in-place mutation, and unhardened passthrough is byte-exact (no UTF-8 re-encode damage). The 270-check robustness suite feeds every parser deliberately malformed inputs and requires controlled reports, not crashes.
 
 **Can I run it on a whole directory?**
 Point the CLI at a file; for directories, script over the tree (the CLI is deliberately single-artifact deterministic).
