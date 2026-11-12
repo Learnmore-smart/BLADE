@@ -81,7 +81,7 @@ As a library: `import { detect, scrubNative, dehardenJs } from "blade"` (see `sr
 node scripts/make-fixtures.mjs                                        # plain fixtures
 npx bla-agents protect <file> --intensity bankrupt --output test-fixtures/hardened
 node scripts/verify.mjs                                               # 39 end-to-end checks
-node scripts/verify-all.mjs                                            # consolidated 32-suite matrix
+node scripts/verify-all.mjs                                            # consolidated 45-suite matrix
 node scripts/live-matrix.mjs                                          # real bla-agents end-to-end (needs vendor/bla)
 node test-fixtures/adversarial/<suite>/run*.mjs                       # per-format adversarial harnesses
 ```

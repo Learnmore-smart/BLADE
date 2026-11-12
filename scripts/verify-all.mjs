@@ -31,6 +31,8 @@ const SUITES = [
   ["deharden-api", "scripts/test-deharden-api.mjs", false],
   ["shield-matrix", "scripts/test-shield-matrix.mjs", false],
   ["text-scrub", "scripts/test-text-scrub.mjs", false],
+  ["fuzz-asar", "scripts/fuzz-asar.mjs", false],
+  ["fuzz-plist", "scripts/fuzz-plist.mjs", false],
   ["detect-corpus", "test-fixtures/adversarial/detect/run.mjs", false],
   ["robustness", "scripts/robustness.mjs", false],
   ["js", "test-fixtures/adversarial/js/run-adversarial.mjs", true],
