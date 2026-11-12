@@ -1,0 +1,3 @@
+#ifndef BLA_SHIELD_H
+#define BLA_SHIELD_H
+extern void enclave_tarpit_fn_0(void);

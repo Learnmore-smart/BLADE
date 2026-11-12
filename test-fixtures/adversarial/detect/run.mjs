@@ -48,6 +48,8 @@ const EXPECT = {
   "one.bin": "unknown", "page.html": "html", "pe-plain.exe": "native",
   "plain.cts": "js", "plain.jsx": "js", "plain.mts": "js", "plain.ts": "js",
   "polyglot-zip.js": "js", "polyglot-elf.js": "js", "polyglot-wasm.js": "js",
+  "header-renamed.txt": "header", "map-renamed.bin": "sourcemap",
+  "page-renamed.dat": "html", "plist-renamed.dat": "plist",
   "real.db": "sqlite", "real.safetensors": "safetensors",
   "sqlite-magic-garbage.db": "sqlite", "sqlite-magic-nonul.db": "sqlite",
   "tiny.dex": "dex", "tiny.gguf": "gguf", "tiny.safetensors": "safetensors",

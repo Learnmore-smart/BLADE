@@ -140,5 +140,25 @@ export function detect(buf, ext) {
   if (ext === ".bplist") return "plist";
   if ([".jar", ".apk", ".aab", ".ipa", ".xapk", ".apex", ".war", ".ear"].includes(ext)) return "zip";
   if ([".exe", ".dll", ".so", ".dylib", ".node", ".elf"].includes(ext)) return "native";
+  // --- content rescue sniffs -----------------------------------------------
+  // Reached only when magic + extension both failed — a renamed or
+  // extension-less copy of a known artifact shape.
+  if (buf.length) {
+    const head = buf.subarray(0, 8192).toString("latin1");
+    // `bla emit-headers` decoy source: the BLA_SHIELD_H guard plus tarpit
+    // machinery is unambiguous emission evidence.
+    if (head.includes("BLA_SHIELD_H") && buf.includes(Buffer.from("enclave_tarpit_", "latin1"))) return "header";
+    // sourcemap spec shape: version:3 + sources[] + mappings — strict enough
+    // that ordinary JSON (data.json, schema traps) can't trip it.
+    if (buf[0] === 0x7b) {
+      try {
+        const m = JSON.parse(buf.toString("utf8"));
+        if (m && typeof m === "object" && m.version === 3 && Array.isArray(m.sources) && typeof m.mappings === "string") return "sourcemap";
+      } catch {}
+    }
+    // document sniffs — doctype/html openers and xml-plist declarations.
+    if (/^\s*<!doctype\s+html/i.test(head) || /^\s*<html[\s>]/i.test(head)) return "html";
+    if (/^\s*<\?xml[^>]*\?>\s*<!DOCTYPE\s+plist/i.test(head) || /^\s*<plist[\s>]/i.test(head)) return "plist";
+  }
   return "unknown";
 }
