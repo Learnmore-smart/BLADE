@@ -1827,8 +1827,8 @@ export function scrubZip(buf, depth = 0) {
 //        | deception block (# --- canary credential .. = probe_canary_honeypot(0))
 //        | customer tail
 // Plus optional weave lines inside customer defs (--weave-decoys).
-const PY_OPAQUE_IF = /^\s*if \(\(\(7 \* \(\([A-Z][A-Z0-9_]* \| \d+\) \*\* 2\) - 1\) & 0xFFFFFFFF\) == \(\(\([A-Z][A-Z0-9_]* \^ \d+\) \*\* 2\) & 0xFFFFFFFF\) and \(\([A-Z][A-Z0-9_]* \* \([A-Z][A-Z0-9_]* \+ 1\)\) & 1\) == 1\):\s*$/;
-const PY_WEAVE_TOUCH = /^\s*[A-Z][A-Z0-9_]*\["epoch"\] = \([A-Z][A-Z0-9_]*\.get\("epoch", 0\) \^ hash\([a-zA-Z_][a-zA-Z0-9_]*\.__name__\)\) & 0xFFFFFFFF\s*$/;
+const PY_OPAQUE_IF = /^\s*if \(\(\(7 \* \(\([A-Za-z_][A-Za-z0-9_]* \| \d+\) \*\* 2\) - 1\) & 0xFFFFFFFF\) == \(\(\([A-Za-z_][A-Za-z0-9_]* \^ \d+\) \*\* 2\) & 0xFFFFFFFF\) and \(\([A-Za-z_][A-Za-z0-9_]* \* \([A-Za-z_][A-Za-z0-9_]* \+ 1\)\) & 1\) == 1\):\s*$/;
+const PY_WEAVE_TOUCH = /^\s*[A-Za-z_][A-Za-z0-9_]*\["epoch"\] = \([A-Za-z_][A-Za-z0-9_]*\.get\("epoch", 0\) \^ hash\([a-zA-Z_][a-zA-Z0-9_]*\.__name__\)\) & 0xFFFFFFFF\s*$/;
 const PY_WEAVE_CALL = /^\s*_ = [a-z_][a-z0-9_]*\(\d+, 0\)( \^ [a-z_][a-z0-9_]*\(\d+, 0\))?\s*$/;
 // markers that can legitimately sit inside string literals — neutralize in
 // place (same length) rather than dropping the string.
@@ -2035,6 +2035,9 @@ export function scrubPySource(text) {
   const lit = neutralizePyLiteralMarkers(code, PY_LITERAL_MARKERS, { comments: true });
   code = lit.src;
   const leftover = /probe_canary_honeypot|CANARY_TOKENS|COGNITIVE_ARMOR_CORPUS|runtime attestation boundary/.test(code);
+  // Weave shapes that escaped the splices (e.g. an identifier casing BLA has
+  // not emitted yet) — surface instead of reporting clean.
+  const residualWeave = /\["epoch"\] = \([A-Za-z_][A-Za-z0-9_]*\.get\("epoch", 0\) \^ hash\(|\(\(\(7 \* \(\([A-Za-z_][A-Za-z0-9_]* \| \d+\) \*\* 2\) - 1\)|_ = [a-z_][a-z0-9_]*\(\d+, 0\)/.test(code);
   return {
     code,
     report: {
@@ -2042,6 +2045,7 @@ export function scrubPySource(text) {
       hardened: removed.length > 0 || wovenRemoved > 0 || lit.neutralized > 0,
       injectedLinesRemoved: removed.length,
       weaveStatementsRemoved: wovenRemoved,
+      residualWeave,
       sidecarPreambleRemoved: pyPreambleRemoved,
       orphanMachinerySwept: orphanSwept,
       literalMarkersNeutralized: lit.neutralized,
@@ -2228,15 +2232,20 @@ export function sidecarNoteTombstone() {
 export function inspectBlaManifest(buf) {
   let doc = null;
   try { doc = JSON.parse(buf.toString("utf8")); } catch {}
-  const isSummary = String(doc?.schema ?? "").startsWith("bla-harden-summary/");
+  const schemaStr = String(doc?.schema ?? "");
+  const isSummary = schemaStr.startsWith("bla-harden-summary/");
+  const isCoverage = schemaStr.startsWith("bla-integrity-coverage/");
   return {
     format: "bla-manifest", hardened: true, decoy: true,
     schema: doc?.schema, signed: Boolean(doc?.signature && doc.signature !== "unsigned"),
     ...(isSummary && doc?.runId ? { runId: doc.runId } : {}),
     ...(isSummary && Array.isArray(doc?.artifacts) ? { artifactsRecorded: doc.artifacts.length } : {}),
-    note: isSummary
-      ? "BLA harden-run summary — provenance metadata only (records which artifacts were hardened), excluded from analysis corpus"
-      : "BLA defense attestation manifest — provenance metadata only, excluded from analysis corpus",
+    ...(isCoverage && Array.isArray(doc?.nodes) ? { nodesRecorded: doc.nodes.length } : {}),
+    note: isCoverage
+      ? "BLA self-seal integrity-coverage matrix — provenance metadata only (binding/digest records), excluded from analysis corpus"
+      : isSummary
+        ? "BLA harden-run summary — provenance metadata only (records which artifacts were hardened), excluded from analysis corpus"
+        : "BLA defense attestation manifest — provenance metadata only, excluded from analysis corpus",
   };
 }
 export function blaManifestTombstone(schema = "defense-manifest-v1") {

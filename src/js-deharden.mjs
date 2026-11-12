@@ -422,7 +422,10 @@ export function dehardenJs(source, { filename = "input.js" } = {}) {
   const maySelfSeal = source.includes("integrity check failed") && source.includes("readFileSync");
   const mayStringStub = source.includes("Uint8Array") &&
     (source.includes(".map(Number)") || source.includes("Buffer.from") || source.includes("TextDecoder"));
-  if (!report.hardened && !mayPreamble && !maySelfSeal && !mayStringStub) return { code: source, report };
+  if (!report.hardened && !mayPreamble && !maySelfSeal && !mayStringStub) {
+    report.bytesOut = source.length;
+    return { code: source, report };
+  }
 
   let ast;
   try {
@@ -440,7 +443,7 @@ export function dehardenJs(source, { filename = "input.js" } = {}) {
       errorRecovery: true,
     });
   } catch (e) {
-    return { code: source, report: { ...report, note: `unparseable — passthrough (${e.message.split("\n")[0]})` } };
+    return { code: source, report: { ...report, bytesOut: source.length, note: `unparseable — passthrough (${e.message.split("\n")[0]})` } };
   }
   const body = ast.program.body;
   // consts discovered during pass 1 get bound back into this map — a
@@ -459,7 +462,10 @@ export function dehardenJs(source, { filename = "input.js" } = {}) {
   let preChanged = false;
   const finishEarly = () => {
     // Non-hardened path: return the original source when nothing verified.
-    if (!preChanged && report.decryptedStrings === 0) return { code: source, report };
+    if (!preChanged && report.decryptedStrings === 0) {
+      report.bytesOut = source.length;
+      return { code: source, report };
+    }
     let code = generate(ast, { comments: true, compact: false }).code;
     code = code
       .split("\n")
