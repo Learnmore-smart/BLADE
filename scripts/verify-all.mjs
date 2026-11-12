@@ -19,6 +19,7 @@ const SUITES = [
   ["name-recovery", "scripts/test-name-recovery.mjs", false],
   ["precision", "scripts/test-precision.mjs", false],
   ["fuzz-js", "scripts/fuzz-js.mjs", false],
+  ["canonical", "scripts/test-canonical.mjs", false],
   ["detect-corpus", "test-fixtures/adversarial/detect/run.mjs", false],
   ["robustness", "scripts/robustness.mjs", false],
   ["js", "test-fixtures/adversarial/js/run-adversarial.mjs", true],
