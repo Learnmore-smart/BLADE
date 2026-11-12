@@ -204,6 +204,19 @@ for (const level of levels) {
       } catch (err) {
         skip++; rows.push(`SKIP  ${tag}  audit: ${String(err).split("\n")[0].slice(0, 80)}`);
       }
+      // `bla verify` checks its own defense invariants on the cleaned file —
+      // every check must FAIL (0 tarpit nodes, 0 payloads, 0 decoy routes).
+      try {
+        let out2 = "";
+        try { out2 = String(execFileSync(process.execPath, [BLA, "verify", af], { stdio: "pipe", timeout: 60000 })); }
+        catch (e) { out2 = String(e.stdout ?? ""); } // verify exits nonzero when invariants fail — that's the goal
+        const fails = (out2.match(/✗ FAIL/g) ?? []).length;
+        const passes = (out2.match(/✓ PASS/g) ?? []).length;
+        check(tag, "verify invariants-fail", fails >= 4 && passes === 0,
+          `verify FAIL=${fails} PASS=${passes}`);
+      } catch (err) {
+        skip++; rows.push(`SKIP  ${tag}  verify: ${String(err).split("\n")[0].slice(0, 80)}`);
+      }
     }
     if (EXEC_CHECK[f]) {
       // the strongest check: cleaned business logic still EXECUTES identically
