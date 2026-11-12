@@ -18,7 +18,7 @@
     "test:robustness": "node scripts/robustness.mjs",
     "test:all": "node scripts/verify-all.mjs",
     "test:detect": "node scripts/test-detect.mjs",
-    "test:unit": "node scripts/test-anomaly.mjs && node scripts/test-evaluator.mjs && node scripts/test-name-recovery.mjs && node scripts/test-precision.mjs && node scripts/test-canonical.mjs",
+    "test:unit": "node scripts/test-anomaly.mjs && node scripts/test-evaluator.mjs && node scripts/test-name-recovery.mjs && node scripts/test-precision.mjs && node scripts/test-canonical.mjs && node scripts/test-manifest.mjs",
     "test:fuzz": "node scripts/fuzz-js.mjs",
     "fixtures": "node scripts/make-fixtures.mjs",
     "blade": "node src/cli.mjs",
