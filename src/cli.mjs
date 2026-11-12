@@ -106,6 +106,12 @@ function main() {
   } else {
     kind = detect(buf, ext);
   }
+  // BLA's own config sidecar (bla.config.json/.blarc/.blarc.json) is direct
+  // provenance that the artifact set was BLA-processed — keep verbatim and
+  // surface it rather than erroring "unrecognized format".
+  if (kind === "unknown" && /^(bla\.config\.json|\.blarc(?:\.json)?)$/i.test(basename(input))) {
+    kind = "bla-config";
+  }
   if (stdin && kind === "sqlite") {
     console.error("blade: sqlite scrubbing needs a real input path (WAL sidecars are merged) — stdin unsupported");
     process.exit(2);
@@ -213,6 +219,10 @@ function main() {
     // strip=>fail binding record only — tombstone it
     const r = inspectSidecarNote(buf); report = r;
     writeOut(output, sidecarNoteTombstone()); report.action = "excluded-decoy-note";
+  } else if (kind === "bla-config") {
+    // BLA's own config sidecar — provenance evidence, keep verbatim + flag
+    report = { blaConfig: true, note: "BLA protection config — sibling artifacts were likely BLA-processed" };
+    writeOut(output, buf); report.action = "kept-provenance";
   } else {
     console.error(`unrecognized format: ${input}`);
     process.exit(1);
