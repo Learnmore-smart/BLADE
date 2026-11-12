@@ -20,7 +20,7 @@ export {
   looksLikeZip, jvmClassLooksValid,
   inspectShieldHeader, headerTombstone,
   bunfsGraphEnd, inspectBunfsSnapshot, bunfsTombstone,
-  inspectSidecarNote, sidecarNoteTombstone,
+  inspectSidecarNote, sidecarNoteTombstone, inspectBlaManifest, blaManifestTombstone,
 } from "./trailer.mjs";
 export {
   emitRuntimeCounterShield, reconstructSourceMap, scoreStructuralAnomaly,

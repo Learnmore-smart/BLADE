@@ -17,7 +17,7 @@ import {
   scrubPyc, scrubZip, scrubPySource, scrubHtml, inspectSourcemap,
   inspectShieldHeader, headerTombstone,
   inspectBunfsSnapshot, bunfsTombstone,
-  inspectSidecarNote, sidecarNoteTombstone,
+  inspectSidecarNote, sidecarNoteTombstone, inspectBlaManifest, blaManifestTombstone,
 } from "./trailer.mjs";
 import { detect } from "./detect.mjs";
 import {
@@ -93,7 +93,7 @@ function main() {
     process.exit(2);
   }
   const ext = stdin ? "" : extname(input).toLowerCase();
-  const KNOWN_KINDS = new Set(["js", "asar", "wasm", "sqlite", "safetensors", "gguf", "native", "dex", "il2cpp", "dotnet", "evm", "ptx", "jvm", "plist", "pcap", "pcapng", "uf2", "beam", "pyc", "zip", "py", "html", "sourcemap", "header", "bunfs-snapshot", "sidecar-note"]);
+  const KNOWN_KINDS = new Set(["js", "asar", "wasm", "sqlite", "safetensors", "gguf", "native", "dex", "il2cpp", "dotnet", "evm", "ptx", "jvm", "plist", "pcap", "pcapng", "uf2", "beam", "pyc", "zip", "py", "html", "sourcemap", "header", "bunfs-snapshot", "sidecar-note", "bla-manifest"]);
   const KIND_ALIASES = { pcapng: "pcap" }; // same scrubber handles both magics
   let kind;
   if (fIdx !== -1) {
@@ -219,6 +219,10 @@ function main() {
     // strip=>fail binding record only — tombstone it
     const r = inspectSidecarNote(buf); report = r;
     writeOut(output, sidecarNoteTombstone()); report.action = "excluded-decoy-note";
+  } else if (kind === "bla-manifest") {
+    // defend-mode attestation manifest — pure BLA provenance, tombstone it
+    const r = inspectBlaManifest(buf); report = r;
+    writeOut(output, blaManifestTombstone()); report.action = "excluded-attestation";
   } else if (kind === "bla-config") {
     // BLA's own config sidecar — provenance evidence, keep verbatim + flag
     report = { blaConfig: true, note: "BLA protection config — sibling artifacts were likely BLA-processed" };

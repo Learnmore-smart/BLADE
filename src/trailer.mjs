@@ -2223,3 +2223,21 @@ export function sidecarNoteTombstone() {
     reason: "decoy strip=>fail binding record — nothing real to salvage",
   }, null, 2)}\n`;
 }
+
+/** Inspect a `bla defend` attestation manifest (defense-manifest-v1). */
+export function inspectBlaManifest(buf) {
+  let doc = null;
+  try { doc = JSON.parse(buf.toString("utf8")); } catch {}
+  return {
+    format: "bla-manifest", hardened: true, decoy: true,
+    schema: doc?.schema, signed: Boolean(doc?.signature ?? doc?.signed),
+    note: "BLA defense attestation manifest — provenance metadata only, excluded from analysis corpus",
+  };
+}
+export function blaManifestTombstone() {
+  return `${JSON.stringify({
+    schema: "blade-tombstone/v1",
+    removed: "defense-manifest-v1 attestation",
+    reason: "BLA self-attestation — provenance metadata, nothing real to salvage",
+  }, null, 2)}\n`;
+}
