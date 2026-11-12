@@ -688,6 +688,53 @@ Library/dx:
   is documented at `src/index.mjs`.
 - `detect()` BE-nsec routing covered by unit tests (40/40).
 
+### Round 10 — live end-to-end vs real BLA 3.2.4
+
+All earlier rounds ran against stored fixtures and emission-shaped harnesses.
+This round replaced synthetic inputs with the **vendored `bla-agents@3.2.4`
+CLI itself** (`scripts/live-matrix.mjs`): generate plain artifacts → real
+`bla protect` → BLADE clean → verify. Result: **370/370 checks** across
+stealth/balanced/maximum/bankrupt + the opt-in flag pass
+(`--llm-directives --weave-decoys --self-seal --sidecar-entangle`).
+
+- **Byte-exact** at every intensity on ELF/Mach-O/PE/.NET/DEX/IL2CPP/
+  bplist/EVM/PCAP/UF2/PYC/PTX/class/BEAM/plist and more.
+- **Independent confirmation by BLA itself**: `bla audit` scores cleaned
+  JS `93/100 UNPROTECTED` (hardened input: `2/100`, plain baseline `93`);
+  `bla verify` reports **every** defense invariant FAIL on cleaned output
+  (0 tarpit nodes, 0 honey payloads, 0 decoy routes, ~1.5x amplification)
+  where the hardened file passed all of them.
+- **`bla harden` project mode** (auto-discovery, bankrupt): all 4
+  discovered artifacts recovered.
+- **`bla defend` 5-stage pipeline**: 186 shadow procedures, 632 SCC XRefs,
+  40 evidence-contract lures, 108 decoy IPC + 36 mirage routes — all
+  removed; cleaned JS executes identically.
+- **BLA's own benchmark showcase** (`benchmark.js` artifacts extracted
+  and protected at bankrupt): byte-exact on pcap/beam/ptx/evm/dll/elf/
+  safetensors; semantic parity elsewhere. Both JS showcase cases added as
+  permanent `v324` regressions.
+
+**Multi-layer hardening** (`protect` output fed back through `protect`):
+
+- JS: two+ corpus families resolve in source order (each seed bound into
+  the mutable evaluator env before later corpora evaluate); still-
+  referenced seeds rebind as folded constants. 3x-hardened `license-core`
+  recovers the **exact original checksum**.
+- WASM: `(kind,idx)` export dedup separates real exports from same-shaped
+  decoys; type/function/code sections byte-identical at 3x; names remain
+  BLA-destroyed (documented ceiling — fallback `name` section emitted).
+- DEX: marker-in-uncut-buffer fix; 2x byte-exact.
+- JVM: trailer cut feeds CP processing (layer-2 does both); degenerate
+  all-decoy pools rebuild `cpCount=1`; widened anchors (`com/enclave/*`,
+  `ENCLAVE:chaff_*`, `HSM_ATTESTATION_*`, ELF-section decoys).
+- GGUF: trailing NUL filler trimmed (`tensorCount=0` + decoys dropped).
+- ZIP: BLA **itself refuses** re-protection ("entries overlap the reserved
+  output namespace") — a BLA-side limit, recorded as `bla refused` skips.
+- Triple-harden spot-check: 5/6 byte-exact; wasm at the name ceiling.
+
+New ceilings documented in README: multi-harden WASM name destruction,
+ASAR `integrity` headers added by `harden`, BLA re-protect refusals.
+
 ## Verification
 
 `node scripts/verify.mjs` — **37 checks, all passing**:
