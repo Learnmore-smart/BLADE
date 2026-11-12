@@ -15,6 +15,7 @@ const SUITES = [
   ["core", "scripts/verify.mjs", false],
   ["anomaly", "scripts/test-anomaly.mjs", false],
   ["detect", "scripts/test-detect.mjs", false],
+  ["evaluator", "scripts/test-evaluator.mjs", false],
   ["detect-corpus", "test-fixtures/adversarial/detect/run.mjs", false],
   ["robustness", "scripts/robustness.mjs", false],
   ["js", "test-fixtures/adversarial/js/run-adversarial.mjs", true],
