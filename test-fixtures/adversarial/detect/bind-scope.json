@@ -1,0 +1,10 @@
+{
+  "schema": "bla-bind-scope/v1",
+  "public": true,
+  "domains": [
+    "*.example-corp.com",
+    "localhost"
+  ],
+  "validUntil": "2027-01-01",
+  "honestyNote": "Bind-scope is a PUBLIC license/environment contract (domains + validity window). It is NOT a covert DRM/backdoor. Conditions must be auditable in bind-scope.json; runtime refusal is deterministic. Default OFF — only applied when bla_bind_scope runs. Prove in-scope behaviour with verify / fixture unlock; out-of-scope must hard-fail."
+}

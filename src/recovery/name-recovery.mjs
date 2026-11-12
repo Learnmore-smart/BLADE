@@ -1199,7 +1199,7 @@ function opsNameTailHint(name) {
 export function recoverWasmExports(wasm) {
   if (!Buffer.isBuffer(wasm)) wasm = Buffer.from(wasm);
   if (wasm.length < 8 || wasm.readUInt32LE(0) !== 0x6d736100) {
-    throw new Error("not wasm");
+    return { names: [], note: "bad magic — passthrough" };
   }
 
   // — section walk (same loose bounds policy as scrubWasm) —

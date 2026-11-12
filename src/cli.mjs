@@ -254,14 +254,29 @@ function main() {
     "state_diff_frontier_", "rollingMask", "splitShareA", "splitShareB",
     "stepShadowHeap_", "cdpShapeBudgetGuard_", "fridaCaptureSaturator_",
     "probeCanaryHoneypot_", "measureIntegrity", "enclave_unseal",
-    "shadowVaultInspector", "cdpShapeBudgetBreaker",
+    "_shadowVault_", "fridaRealmRing_", "obligationFlood", "labyrinthDispatch",
+    "diffFrontier", "readSplitShare", "inspectorObserved",
   ];
   const hints = RUNTIME_HINTS.filter((m) => buf.includes(m));
-  if (hints.length > 0) {
-    const cs = emitRuntimeCounterShield(hints);
+  // Evidence gate: a genuine file that merely *mentions* a hint string in
+  // text/comments must not sprout counter-shield sidecars.
+  const removalEvidence =
+    ["removedTopLevel", "injectedFunctionsRemoved", "selfSealFunctionsRemoved",
+     "bindScopeCheckRemoved", "weaveStatementsRemoved", "prologueCallsRemoved",
+     "membersRemoved", "keysDropped", "entriesRemoved", "mapMembersReconstructed"]
+      .some((k) => (report[k] ?? 0) > 0);
+  if (hints.length > 0 && (report.hardened === true || removalEvidence)) {
+    // Feed the harvested evidence too — machinery names the scrubbers removed
+    // map to families the raw substring hints miss (and vice versa).
+    const harvested = [...hints,
+      ...(report.removedNameSamples ?? []),
+      ...(report.recoveredStrings ?? []),
+      ...(report.renamedBindings ?? []).flat(),
+    ];
+    const cs = emitRuntimeCounterShield(harvested);
     const a = output + ".blade-counter.js", n = output + ".blade-cdp-notes.md", s = output + ".blade-tee-stub.js";
     writeOut(a, cs.fridaScript); writeOut(n, cs.cdpNotes); writeOut(s, cs.teeStubSurface);
-    report.runtimeCounterShield = { fridaScript: a, cdpNotes: n, teeStubSurface: s, hints };
+    report.runtimeCounterShield = { fridaScript: a, cdpNotes: n, teeStubSurface: s, hints, families: cs.families };
   }
 
   const json = JSON.stringify(report, null, 2);

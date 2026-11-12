@@ -2235,17 +2235,21 @@ export function inspectBlaManifest(buf) {
   const schemaStr = String(doc?.schema ?? "");
   const isSummary = schemaStr.startsWith("bla-harden-summary/");
   const isCoverage = schemaStr.startsWith("bla-integrity-coverage/");
+  const isBindScope = schemaStr.startsWith("bla-bind-scope/");
   return {
     format: "bla-manifest", hardened: true, decoy: true,
     schema: doc?.schema, signed: Boolean(doc?.signature && doc.signature !== "unsigned"),
     ...(isSummary && doc?.runId ? { runId: doc.runId } : {}),
     ...(isSummary && Array.isArray(doc?.artifacts) ? { artifactsRecorded: doc.artifacts.length } : {}),
     ...(isCoverage && Array.isArray(doc?.nodes) ? { nodesRecorded: doc.nodes.length } : {}),
-    note: isCoverage
-      ? "BLA self-seal integrity-coverage matrix — provenance metadata only (binding/digest records), excluded from analysis corpus"
-      : isSummary
-        ? "BLA harden-run summary — provenance metadata only (records which artifacts were hardened), excluded from analysis corpus"
-        : "BLA defense attestation manifest — provenance metadata only, excluded from analysis corpus",
+    ...(isBindScope && Array.isArray(doc?.domains) ? { domains: doc.domains.length } : {}),
+    note: isBindScope
+      ? "BLA public bind-scope contract — provenance metadata only (host/domain refusal rules), excluded from analysis corpus"
+      : isCoverage
+        ? "BLA self-seal integrity-coverage matrix — provenance metadata only (binding/digest records), excluded from analysis corpus"
+        : isSummary
+          ? "BLA harden-run summary — provenance metadata only (records which artifacts were hardened), excluded from analysis corpus"
+          : "BLA defense attestation manifest — provenance metadata only, excluded from analysis corpus",
   };
 }
 export function blaManifestTombstone(schema = "defense-manifest-v1") {

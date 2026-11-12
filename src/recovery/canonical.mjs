@@ -546,7 +546,7 @@ function buildFridaScript(families) {
   L.push("function cstr(p) { try { return p.isNull() ? '' : p.readCString(); } catch (e) { return ''; } }");
   L.push("['strstr', 'strcasestr'].forEach(function (n) {");
   L.push("  hook(n, null, {");
-  L.push("    onEnter: function (a) { this.bad = NEEDLE.test(cstr(a[0])) || NEEDLE.test(cstr(a[1])); },");
+  L.push("    onEnter: function (a) { this.bad = NEEDLE.test(cstr(a[1])); }, // needle arg only — haystack often contains 'gum'/'gadget' incidentally");
   L.push("    onLeave: function (r) { if (this.bad) r.replace(ptr(0)); }");
   L.push("  });");
   L.push("});");
@@ -833,6 +833,7 @@ function buildTeeStubSurface(families) {
 export function emitRuntimeCounterShield(hardenedHints) {
   const { families } = detectRuntimeFamilies(hardenedHints);
   return {
+    families,
     fridaScript: buildFridaScript(families),
     cdpNotes: buildCdpNotes(families),
     teeStubSurface: buildTeeStubSurface(families),

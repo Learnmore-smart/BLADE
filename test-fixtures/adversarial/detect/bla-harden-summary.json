@@ -1,0 +1,26 @@
+{
+  "schema": "bla-harden-summary/v2",
+  "runId": "bla-run-e7b76afa6a9e8011e03b69f9",
+  "signature": "unsigned",
+  "directory": "D:\\Noah\\文档\\Coding\\1. Open-Source\\BLADE\\dh3\\covproj",
+  "intensity": "balanced",
+  "weaveDecoys": false,
+  "selfSeal": true,
+  "sidecarEntangle": false,
+  "artifacts": [
+    {
+      "inputPath": "D:\\Noah\\文档\\Coding\\1. Open-Source\\BLADE\\dh3\\covproj\\license-core.js",
+      "relativePath": "license-core.js",
+      "format": "javascript",
+      "outputPath": "D:\\Noah\\文档\\Coding\\1. Open-Source\\BLADE\\dh3\\covproj\\.bla-hardened\\license-core.js",
+      "success": true,
+      "defenseScore": 93,
+      "tokenAmplificationFactor": 1042.7,
+      "costAmplificationFactor": 414.7,
+      "outputExisted": false
+    }
+  ],
+  "written": [
+    "D:\\Noah\\文档\\Coding\\1. Open-Source\\BLADE\\dh3\\covproj\\.bla-hardened\\license-core.js"
+  ]
+}

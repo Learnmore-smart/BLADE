@@ -107,11 +107,11 @@ export function detect(buf, ext) {
   // still surface. Both carry only run records (no program logic).
   if (buf.length && buf[0] === 0x7b &&
       (buf.includes(Buffer.from("defense-manifest-v1", "utf8")) || buf.includes(Buffer.from("bla-harden-summary/", "utf8"))
-       || buf.includes(Buffer.from("bla-integrity-coverage/", "utf8")))) {
+       || buf.includes(Buffer.from("bla-integrity-coverage/", "utf8")) || buf.includes(Buffer.from("bla-bind-scope/", "utf8")))) {
     try {
       const schema = String(JSON.parse(buf.toString("utf8"))?.schema ?? "");
       if (schema.includes("defense-manifest-v1") || schema.startsWith("bla-harden-summary/")
-          || schema.startsWith("bla-integrity-coverage/")) return "bla-manifest";
+          || schema.startsWith("bla-integrity-coverage/") || schema.startsWith("bla-bind-scope/")) return "bla-manifest";
     } catch {}
   }
   // text formats by extension

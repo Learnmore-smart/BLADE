@@ -60,7 +60,7 @@ const STRONG_NAME = [
 const GENERIC_SUFFIX_NAME = /^[_$a-zA-Z][\w$]*_[0-9a-f]{3,4}$/;
 // 3.2.4: the shadow-vault object lost its honest labels — classification/
 // securityBoundary strings became protocolVersion/attestationState/transport.
-const RUNTIME_MARKERS = /_shadowVault_|decorative-deception-signal|__REA_CDP_GUARD|Frida-Interlock|frida-attestation|RING0_SEALED|AF_VSOCK_RING0|HARDWARE_ENCLAVE_DELEGATED|attestationState/;
+const RUNTIME_MARKERS = /_shadowVault_|decorative-deception-signal|__REA_CDP_GUARD|Frida-Interlock|frida-attestation|RING0_SEALED|AF_VSOCK_RING0|HARDWARE_ENCLAVE_DELEGATED|attestationState|BLA_BIND_SCOPE_CHECK|BLA bind-scope/;
 
 // Blank out comments, string/template literals and regex literals so marker
 // detection only sees code positions (identifiers, keywords). Marker-shaped
@@ -402,6 +402,7 @@ export function dehardenJs(source, { filename = "input.js" } = {}) {
     injectedFunctionsRemoved: 0,
     prologueCallsRemoved: 0,
     asarPreambleRemoved: 0,
+    bindScopeCheckRemoved: 0,
     selfSealFunctionsRemoved: 0,
     selfSealBindingsRemoved: 0,
     decryptedStrings: 0,
@@ -422,7 +423,10 @@ export function dehardenJs(source, { filename = "input.js" } = {}) {
   const maySelfSeal = source.includes("integrity check failed") && source.includes("readFileSync");
   const mayStringStub = source.includes("Uint8Array") &&
     (source.includes(".map(Number)") || source.includes("Buffer.from") || source.includes("TextDecoder"));
-  if (!report.hardened && !mayPreamble && !maySelfSeal && !mayStringStub) {
+  // bind-scope is opt-in (bla_bind_scope) and prepends its refusal IIFE with no
+  // other machinery — without this prefilter a bind-scope-only file passthroughs.
+  const mayBindScope = source.includes("BLA_BIND_SCOPE_CHECK") || source.includes("BLA bind-scope:");
+  if (!report.hardened && !mayPreamble && !maySelfSeal && !mayStringStub && !mayBindScope) {
     report.bytesOut = source.length;
     return { code: source, report };
   }
@@ -481,6 +485,21 @@ export function dehardenJs(source, { filename = "input.js" } = {}) {
     if (isAsarSidecarPreamble(stmt)) {
       preRemove.add(stmt);
       report.asarPreambleRemoved++;
+    }
+  }
+
+  // (a2) bind-scope refusal IIFE — `(function BLA_BIND_SCOPE_CHECK(){…})()`.
+  // Opt-in engine (bla_bind_scope) prepends this domain/date gate; the callee
+  // name is a fixed literal BLA's own lint keys on, so name-matching is safe.
+  for (const stmt of body) {
+    if (preRemove.has(stmt)) continue;
+    if (stmt.type === "ExpressionStatement" && stmt.expression.type === "CallExpression") {
+      const callee = stmt.expression.callee;
+      if ((callee.type === "FunctionExpression" || callee.type === "ArrowFunctionExpression") &&
+          callee.id?.name === "BLA_BIND_SCOPE_CHECK") {
+        preRemove.add(stmt);
+        report.bindScopeCheckRemoved = (report.bindScopeCheckRemoved ?? 0) + 1;
+      }
     }
   }
 
@@ -728,6 +747,24 @@ export function dehardenJs(source, { filename = "input.js" } = {}) {
     for (let i = body.length - 1; i >= 0; i--) {
       if (preRemove.has(body[i])) { body.splice(i, 1); preChanged = true; }
     }
+    // Orphan marker comments: the removed stmt's leading banner re-attaches
+    // to the next survivor during codegen — sweep marker-text comments off
+    // every remaining statement so `/* BLA_BIND_SCOPE_CHECK … */` doesn't linger.
+    if (report.bindScopeCheckRemoved > 0) {
+      const sweep = (n) => {
+        for (const k of ["leadingComments", "trailingComments", "innerComments"]) {
+          if (Array.isArray(n[k])) {
+            n[k] = n[k].filter((c) => !/BLA_BIND_SCOPE_CHECK|BLA bind-scope/.test(c.value ?? ""));
+          }
+        }
+      };
+      for (const s of body) walkJsNodes(s, sweep);
+      sweep(ast.program);
+      for (const d of ast.program.directives ?? []) sweep(d);
+      if (Array.isArray(ast.comments)) {
+        ast.comments = ast.comments.filter((c) => !/BLA_BIND_SCOPE_CHECK|BLA bind-scope/.test(c.value ?? ""));
+      }
+    }
     for (const b of sealBindings) {
       const refs = new Set();
       for (const s of body) walkJsNodes(s, (n) => { if (n.type === "Identifier") refs.add(n.name); });
@@ -753,8 +790,8 @@ export function dehardenJs(source, { filename = "input.js" } = {}) {
     const e = stmt.expression;
     if (e.type === "UnaryExpression" && e.operator === "void") {
       const arg = e.argument;
-      if (arg.type === "ArrayExpression") {
-        for (const el of arg.elements) if (el && el.type === "Identifier") voidNames.add(el.name);
+      if (arg.type === "ArrayExpression" || arg.type === "SequenceExpression") {
+        for (const el of arg.elements ?? arg.expressions) if (el && el.type === "Identifier") voidNames.add(el.name);
       } else if (arg.type === "Identifier") {
         if (STRONG_NAME.some((re) => re.test(arg.name)) || GENERIC_SUFFIX_NAME.test(arg.name)) {
           voidNames.add(arg.name);
@@ -766,7 +803,7 @@ export function dehardenJs(source, { filename = "input.js" } = {}) {
   // ---- Pass 1: seed discovery (corpus + digest + seed decl)
   let corpusEntries = null;
   let seedDeclIndex = -1;
-  let seedName = null, seedValue = null, seedExpected = null;
+  let seedName = null, seedValue = null, seedExpected = null, seedApproximate = false;
   const seedBindings = [];   // every resolved seed decl — multi-layer files have several
   const digestRe = /^_deriveContainmentCorpusDigest_\w+$/;
   // single in-order pass: a corpus whose entries do seed-arithmetic always
@@ -808,7 +845,13 @@ export function dehardenJs(source, { filename = "input.js" } = {}) {
             report.corpusTampered = true;
           }
         }
-        seedValue = base.known ? (base.value | bit0) | 0 : bit0;
+        // `+` is addition, `|` is bitwise-or — BLA masks bases even so they
+        // coincide, but an odd base makes them differ (and flips parity).
+        seedValue = base.known
+          ? (d.init.operator === "+" ? (base.value + bit0) | 0 : (base.value | bit0) | 0)
+          : bit0;
+        seedApproximate = !base.known; // parity-only estimate when the
+        // base carries unresolvable identifiers (self-seal entanglement)
         seedDeclIndex = i;
         report.seedResolved = true;
         // bind immediately: later digest checks in a multi-layer hardened
@@ -818,7 +861,7 @@ export function dehardenJs(source, { filename = "input.js" } = {}) {
       }
     }
   }
-  report.seed = seedName ? { name: seedName, value: seedValue, parity: seedValue & 1, expectedDigest: seedExpected, intact: corpusEntries ? seedValue === (seedValue | 1) : null } : null;
+  report.seed = seedName ? { name: seedName, value: seedValue, parity: seedValue & 1, expectedDigest: seedExpected, intact: corpusEntries ? seedValue === (seedValue | 1) : null, ...(seedApproximate ? { approximate: true } : {}) } : null;
   // shape-evolved seed variants: when the exact-shape match found nothing
   // but the file is otherwise hardened, surface heuristic candidates so a
   // future BLA shape change degrades loudly instead of silently.
@@ -865,6 +908,40 @@ export function dehardenJs(source, { filename = "input.js" } = {}) {
     }
     return null;
   };
+  // `var`/function names declared inside a dead branch still hoist to the
+  // function scope (as undefined bindings) — collect them before removal so
+  // downstream reads stay ReferenceError-free. Annex-B: a function decl's
+  // name hoists but its body's vars do not.
+  const hoistedVarNames = (branch) => {
+    const names = new Set();
+    if (!branch) return names;
+    const walk = (node) => {
+      if (!node || typeof node !== "object") return;
+      if (node.type === "FunctionDeclaration") {
+        if (node.id?.name) names.add(node.id.name);
+        return;
+      }
+      if (node.type === "FunctionExpression" || node.type === "ArrowFunctionExpression") return;
+      if (node.type === "VariableDeclaration" && node.kind === "var") {
+        const ids = [];
+        for (const d of node.declarations) collectIds(d.id, ids);
+        for (const n of ids) names.add(n);
+      }
+      for (const k in node) {
+        const c = node[k];
+        if (Array.isArray(c)) for (const e of c) walk(e);
+        else if (c && typeof c === "object" && c.type) walk(c);
+      }
+    };
+    walk(branch);
+    return names;
+  };
+  const declareHoisted = (path, names) => {
+    if (names.size === 0) return;
+    path.insertBefore(t.variableDeclaration("var",
+      [...names].map((n) => t.variableDeclarator(t.identifier(n)))));
+    changed = true;
+  };
   let iterations = 0;
   let changed = true;
   while (changed && iterations++ < 12) {
@@ -873,31 +950,76 @@ export function dehardenJs(source, { filename = "input.js" } = {}) {
       IfStatement(path) {
         const r = ev(path.node.test);
         if (!r.known) return;
+        const inIfSlot = path.parentPath.isIfStatement();
         if (r.value) {
           report.unwrappedOpaqueTrue++;
           const cons = path.node.consequent;
-          if (cons.type === "BlockStatement") {
-            if (path.parentPath.isIfStatement()) path.node.consequent = cons.body.length === 1 ? cons.body[0] : t.blockStatement(cons.body);
-            else path.replaceWithMultiple(cons.body);
+          declareHoisted(path, hoistedVarNames(path.node.alternate)); // the else-branch dies
+          if (inIfSlot) {
+            // single-statement slot — replace the whole if with a block so
+            // the node actually converges instead of rewriting in place.
+            path.replaceWith(cons.type === "BlockStatement" ? t.blockStatement(cons.body) : t.blockStatement([cons]));
+          } else if (cons.type === "BlockStatement") {
+            path.replaceWithMultiple(cons.body);
           } else {
             path.replaceWith(cons);
           }
           changed = true;
         } else {
           report.removedOpaqueFalse++;
-          if (path.node.alternate) {
-            const alt = path.node.alternate;
-            if (alt.type === "BlockStatement") {
-              if (path.parentPath.isIfStatement()) path.node.alternate = alt.body.length === 1 ? alt.body[0] : t.blockStatement(alt.body);
-              else path.replaceWithMultiple(alt.body);
+          declareHoisted(path, hoistedVarNames(path.node.consequent)); // the then-branch dies
+          const alt = path.node.alternate;
+          if (alt) {
+            if (inIfSlot) {
+              path.replaceWith(alt.type === "BlockStatement" ? t.blockStatement(alt.body) : t.blockStatement([alt]));
+            } else if (alt.type === "BlockStatement") {
+              path.replaceWithMultiple(alt.body);
             } else {
               path.replaceWith(alt);
             }
+          } else if (inIfSlot && path.parentPath.node.consequent === path.node) {
+            path.replaceWith(t.emptyStatement()); // `if (x) <dead>` → `if (x);`
           } else {
             path.remove();
           }
           changed = true;
         }
+      },
+      WhileStatement(path) {
+        const r = ev(path.node.test);
+        if (!r.known || r.value) return;
+        // while(false){…} never runs — but its vars still hoist.
+        declareHoisted(path, hoistedVarNames(path.node.body));
+        report.removedOpaqueFalse++;
+        path.remove();
+        changed = true;
+      },
+      DoWhileStatement(path) {
+        const r = ev(path.node.test);
+        if (!r.known || r.value) return;
+        // do{…}while(false) runs the body exactly once — unwrap it.
+        report.unwrappedOpaqueTrue++;
+        const body = path.node.body;
+        if (path.parentPath.isIfStatement()) {
+          path.replaceWith(body.type === "BlockStatement" ? body : t.blockStatement([body]));
+        } else if (body.type === "BlockStatement") {
+          path.replaceWithMultiple(body.body);
+        } else {
+          path.replaceWith(body);
+        }
+        changed = true;
+      },
+      ForStatement(path) {
+        const r = path.node.test ? ev(path.node.test) : { known: false };
+        if (!r.known || r.value) return;
+        // for(init; false; upd){…} — init still runs once, body never.
+        declareHoisted(path, hoistedVarNames(path.node.body));
+        report.removedOpaqueFalse++;
+        const init = path.node.init;
+        if (init?.type === "VariableDeclaration") path.replaceWith(init);
+        else if (init) path.replaceWith(t.expressionStatement(init));
+        else path.remove();
+        changed = true;
       },
       ConditionalExpression(path) {
         const r = ev(path.node.test);
@@ -970,7 +1092,7 @@ export function dehardenJs(source, { filename = "input.js" } = {}) {
     // plain `void [a,b]`/`void ident` in an unhardened file stays real.
     if (arg.type === "ArrayExpression" || arg.type === "SequenceExpression") {
       const ids = [];
-      if (arg.type === "ArrayExpression") for (const el of arg.elements) { if (el?.type === "Identifier") ids.push(el.name); }
+      for (const el of arg.elements ?? arg.expressions) { if (el?.type === "Identifier") ids.push(el.name); }
       return ids.length > 0 && ids.every((n) => injectedNames.has(n));
     }
     if (arg.type === "Identifier") {
@@ -1319,7 +1441,6 @@ export function dehardenJs(source, { filename = "input.js" } = {}) {
     .filter((l) => !/^\s*\/\/#?\s*sourceMappingURL=/.test(l))
     .join("\n")
     .replace(/\/\*[^*]*(runtime attestation boundary|decorative shadow runtime signal|apparent decompiler constant)[^*]*\*\/\n?/g, "");
-  report.bytesOut = code.length;
   report.recoveredStrings = [...report.recoveredStrings].sort();
   // best-degree recovery for BLA-destroyed identifier names: semantic
   // renaming — embedded original-name hints, init-expression evidence,
@@ -1327,5 +1448,6 @@ export function dehardenJs(source, { filename = "input.js" } = {}) {
   // names can. report.inferredRenames / report.unrenamable are populated by
   // the call.
   if (report.hardened) code = recoverJsNames(code, report).code;
+  report.bytesOut = code.length; // after name recovery — it changes byte length
   return { code, report };
 }

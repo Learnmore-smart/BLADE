@@ -120,8 +120,22 @@ export interface StructuralAnomaly {
 export function scoreStructuralAnomaly(buf: Buffer, formatHint?: string): StructuralAnomaly;
 
 // ---- recovery/name-recovery ----
-export function recoverJsNames(code: string, report?: ScrubReport): { code: string; renamed: number };
-export function recoverWasmExports(wasm: Buffer): { buf: Buffer; names: number };
+export interface JsRename {
+  from: string;
+  to: string;
+  confidence: string;
+  evidence: string;
+}
+export function recoverJsNames(code: string, report?: ScrubReport): {
+  code: string;
+  renames: JsRename[];
+  unrenamable: Array<{ name: string; reason: string }>;
+};
+export function recoverWasmExports(wasm: Buffer): {
+  names: Array<Record<string, unknown>>;
+  nameSection?: Buffer;
+  note?: string;
+};
 
 // ---- recovery/precision ----
 export interface PycSpliceResult {

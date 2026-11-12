@@ -50,10 +50,11 @@ export function makeEvaluator(constValues = new Map()) {
       case "NullLiteral":
         return KNOWN(null);
       case "Identifier":
+        // bindings shadow builtins — `const undefined = x` is legal
+        if (constValues.has(node.name)) return KNOWN(constValues.get(node.name));
         if (node.name === "undefined") return KNOWN(undefined);
         if (node.name === "NaN") return KNOWN(NaN);
         if (node.name === "Infinity") return KNOWN(Infinity);
-        if (constValues.has(node.name)) return KNOWN(constValues.get(node.name));
         return UNKNOWN;
       case "ParenthesizedExpression":
       case "TSAsExpression":

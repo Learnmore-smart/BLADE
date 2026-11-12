@@ -1,0 +1,64 @@
+{
+  "schema": "https://bla.tools/schemas/defense-manifest-v1.json",
+  "blaVersion": "3.2.4",
+  "protectedAt": "2026-11-12T00:13:20.464Z",
+  "attestationKind": "unsigned",
+  "inputSha256": "6aaffb9c6c75baf0a87b21661d793e1ff84ca1762aa3ba2c51298abd0d2f61ca",
+  "protectedSha256": "4397c13d4fa3e82fd06156ac0531c91c01da2b08bc14ba0d3d2c771343399576",
+  "detectedFormat": "directory",
+  "intensity": "bankrupt",
+  "defenseScore": 99,
+  "counteredReaVectors": [
+    "js-static-semantics",
+    "electron-ipc-bridge",
+    "js-route-rpc-inventory",
+    "sourcemap-recovery",
+    "call-graph-tracing",
+    "obligation-ledger-cloning"
+  ],
+  "reaBudgetsTargeted": [
+    "js-primitive-candidates",
+    "js-expression-depth",
+    "js-getter-expansion",
+    "js-alias-selections",
+    "js-primitive-json-bytes",
+    "wasm-interface-representation",
+    "sqlite-column-evaluation",
+    "safetensors-json-nesting",
+    "gguf-metadata-nesting",
+    "cdp-script-source-budget",
+    "lldb-trace-frames",
+    "lldb-other-stops",
+    "gdb-command-output-records",
+    "rizin-command-frames",
+    "environment-compare-step-diff",
+    "go-buildinfo-bytes",
+    "flutter-pool-uris",
+    "flutter-pool-tokens",
+    "erlang-beam-chunks",
+    "erlang-beam-atoms",
+    "evm-input-bytes",
+    "pcap-tshark-json",
+    "gpu-report-bytes"
+  ],
+  "exhaustionSummary": {
+    "reaBudgetsTripped": [
+      "alias-selections",
+      "primitive-candidates",
+      "primitive-bytes",
+      "getter-expansion"
+    ],
+    "obligationLedgerNodesBefore": 4,
+    "obligationLedgerNodesAfter": 225,
+    "tokenAmplificationFactor": 2338.7,
+    "costAmplificationFactor": 905.8,
+    "attackerEstimatedBillUsd": 235.5
+  },
+  "deceptionSummary": {
+    "decoyFunctionsInjected": 93,
+    "fakeCrossReferencesCreated": 316,
+    "chaffAndEvidenceLuresEmbedded": 20,
+    "ipcAmbiguityAndObligationSites": 38,
+    "decoyRoutesAndGrpcMethods": 18
+  }
+}
