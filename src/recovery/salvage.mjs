@@ -233,10 +233,12 @@ const EVM_ARITY = (() => {
  * @param {Buffer} buf @param {number} [declaredEnd]
  * @returns {{ padStart: number|null, confidence: string, evidence: string }}
  */
-export function detectEvmPad(buf, declaredEnd = buf.length) {
+export function detectEvmPad(buf, declaredEnd) {
   const none = (confidence, evidence) => ({ padStart: null, confidence, evidence });
   if (!buf || buf.length === 0) return none("low", "empty-buffer");
-  const end = Math.max(0, Math.min(declaredEnd >>> 0 || 0, buf.length));
+  // declaredEnd defaults to the full buffer — compute it AFTER the null
+  // guard so detectEvmPad(null) can't crash inside the default parameter.
+  const end = Math.max(0, Math.min((declaredEnd ?? buf.length) >>> 0 || 0, buf.length));
   if (end < 16) return none("low", "declared region < 16B");
 
   // Linear disassembly of [0,end): instruction offsets, sizes, PUSH immediates.
