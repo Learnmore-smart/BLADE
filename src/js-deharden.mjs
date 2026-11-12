@@ -451,6 +451,59 @@ export function dehardenJs(source, { filename = "input.js" } = {}) {
     return { code: source, report: { ...report, bytesOut: source.length, note: `unparseable — passthrough (${e.message.split("\n")[0]})` } };
   }
   const body = ast.program.body;
+
+  // Guard: Babel's parse tolerates duplicate block-scoped declarations
+  // under errorRecovery, but traverse() registers bindings strictly and
+  // throws TypeError("Duplicate declaration …") mid-pass — an uncaught
+  // crash on adversarial input. Detect the conflict shape ourselves with
+  // a manual walk (no scope machinery) and passthrough honestly instead.
+  {
+    let dup = null;
+    const collectPattern = (pat, set) => {
+      if (!pat) return;
+      if (pat.type === "Identifier") { set.add(pat.name); return; }
+      if (pat.type === "ObjectPattern") for (const p of pat.properties) collectPattern(p.value ?? p.argument ?? p.key, set);
+      else if (pat.type === "ArrayPattern") for (const el of pat.elements) collectPattern(el, set);
+      else if (pat.type === "RestElement") collectPattern(pat.argument, set);
+      else if (pat.type === "AssignmentPattern") collectPattern(pat.left, set);
+    };
+    const walk = (node, depth) => {
+      if (dup || !node || typeof node !== "object" || depth > 400) return;
+      if (Array.isArray(node)) { for (const c of node) walk(c, depth); return; }
+      const t = node.type;
+      if (t === "Program" || t === "BlockStatement" || t === "StaticBlock") {
+        const lex = new Set();
+        for (const stmt of node.body ?? []) {
+          if (stmt.type === "VariableDeclaration" && stmt.kind !== "var") {
+            for (const d of stmt.declarations) {
+              const names = new Set(); collectPattern(d.id, names);
+              for (const n of names) { if (lex.has(n)) { dup = n; return; } lex.add(n); }
+            }
+          } else if (stmt.type === "ClassDeclaration" ||
+                     (stmt.type === "FunctionDeclaration" && node.type === "Program" && ast.program.sourceType === "module")) {
+            // class decls are block-scoped everywhere; function decls are
+            // block-scoped only in strict/module code (sloppy Annex-B allows
+            // the dup shape Babel still rejects during traverse).
+            const n = stmt.id?.name;
+            if (n) { if (lex.has(n)) { dup = n; return; } lex.add(n); }
+          }
+          // nested blocks get their own scope check via recursion below
+        }
+      }
+      for (const k in node) {
+        if (k === "loc" || k === "start" || k === "end" || k === "leadingComments" || k === "trailingComments" || k === "innerComments") continue;
+        const v = node[k];
+        if (v && typeof v === "object") walk(v, depth + 1);
+        if (dup) return;
+      }
+    };
+    walk(ast.program, 0);
+    if (dup) {
+      report.bytesOut = source.length;
+      return { code: source, report: { ...report, hardened: false, note: `conflicting block-scoped declaration '${dup}' — unparseable-by-traverse input, passthrough` } };
+    }
+  }
+
   // consts discovered during pass 1 get bound back into this map — a
   // double-hardened file's second digest check may express its expected
   // value as seed-arithmetic over the FIRST family's seed, which only
@@ -471,7 +524,14 @@ export function dehardenJs(source, { filename = "input.js" } = {}) {
       report.bytesOut = source.length;
       return { code: source, report };
     }
-    let code = generate(ast, { comments: true, compact: false }).code;
+    let code;
+    try {
+      code = generate(ast, { comments: true, compact: false }).code;
+    } catch (e) {
+      report.bytesOut = source.length;
+      report.note = `generator failed (${e.message.split("\n")[0]}) — passthrough`;
+      return { code: source, report };
+    }
     code = code
       .split("\n")
       .filter((l) => !/^\s*\/\/#?\s*sourceMappingURL=/.test(l))
@@ -1455,7 +1515,17 @@ export function dehardenJs(source, { filename = "input.js" } = {}) {
     report.seedsRebound = rebound;
   }
 
-  let code = generate(ast, { comments: true, compact: false }).code;
+  let code;
+  try {
+    code = generate(ast, { comments: true, compact: false }).code;
+  } catch (e) {
+    // adversarial node shapes (e.g. orphaned TSTypeCastExpression produced
+    // by partial removals on weird input) can defeat @babel/generator —
+    // passthrough the pristine source rather than crash.
+    report.bytesOut = source.length;
+    report.note = `generator failed (${e.message.split("\n")[0]}) — passthrough`;
+    return { code: source, report };
+  }
   // drop BLA honey sourcemap trailer (+ any injected marker comments)
   code = code
     .split("\n")
