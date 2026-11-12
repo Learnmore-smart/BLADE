@@ -25,6 +25,7 @@ const SUITES = [
   ["dotnet", "test-fixtures/adversarial/dotnet/run-adversarial.mjs", false],
   ["evm", "test-fixtures/adversarial/evm/run.mjs", false],
   ["html", "test-fixtures/adversarial/html/run-all.mjs", false],
+  ["idempotency", "scripts/idempotency.mjs", false],
   ["jvm", "test-fixtures/adversarial/jvm/adversarial-jvm.mjs", false],
   ["model", "scripts/adversarial-model.mjs", false],
   ["native", "test-fixtures/adversarial/native/check.mjs", false],

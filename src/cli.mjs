@@ -185,28 +185,33 @@ function main() {
     const r = CODE_KINDS[kind](buf.toString("utf8")); report = r.report; writeOut(output, r.code);
   } else if (kind === "sourcemap") {
     const r = inspectSourcemap(buf.toString("utf8")); report = r;
-    // Original mappings are destroyed — but the passthrough map emitted is
-    // poisoned honey bytes. Recover to the best degree available: locate the
-    // sibling JS, deharden it, and emit a spec-valid identity map over the
-    // dehardened code (positions an analyst actually sees). No sibling → a
-    // clean skeleton; either way the output is never the honey map.
-    let parsed = null;
-    try { parsed = JSON.parse(buf.toString("utf8")); } catch {}
-    let dehardenedJs = null;
-    const jsPath = parsed?.file ? join(dirname(input), parsed.file)
-      : input.endsWith(".map") ? input.slice(0, -4) : null;
-    if (jsPath && existsSync(jsPath)) {
-      try {
-        const src = readFileSync(jsPath, "utf8");
-        dehardenedJs = looksBlaHardened(src) ? dehardenJs(src, { filename: basename(jsPath) }).code : src;
-      } catch {}
+    if (!r.honeyMap) {
+      // Genuine map — copy verbatim. Reconstructing it would destroy real
+      // mappings for zero benefit (non-idempotent, too).
+      writeOut(output, buf);
+      report.action = "passthrough";
+    } else {
+      // Honey map: original mappings are destroyed and the passthrough bytes
+      // are poison. Recover to the best degree available: locate the sibling
+      // JS, deharden it, and emit a spec-valid identity map over the
+      // dehardened code (positions an analyst actually sees). No sibling → a
+      // clean skeleton; either way the output is never the honey map.
+      let parsed = null;
+      try { parsed = JSON.parse(buf.toString("utf8")); } catch {}
+      let dehardenedJs = null;
+      const jsPath = parsed?.file ? join(dirname(input), parsed.file)
+        : input.endsWith(".map") ? input.slice(0, -4) : null;
+      if (jsPath && existsSync(jsPath)) {
+        try {
+          const src = readFileSync(jsPath, "utf8");
+          dehardenedJs = looksBlaHardened(src) ? dehardenJs(src, { filename: basename(jsPath) }).code : src;
+        } catch {}
+      }
+      const rec = reconstructSourceMap(parsed, dehardenedJs, dehardenedJs ? Buffer.byteLength(dehardenedJs) : buf.length);
+      writeOut(output, JSON.stringify(rec.map));
+      report.action = dehardenedJs ? "reconstructed-identity-map" : "skeleton-map";
+      report.sourceMapRecovery = rec.status;
     }
-    const rec = reconstructSourceMap(parsed, dehardenedJs, buf.length);
-    writeOut(output, JSON.stringify(rec.map));
-    report.action = r.honeyMap
-      ? (dehardenedJs ? "reconstructed-identity-map" : "skeleton-map")
-      : "passthrough";
-    report.sourceMapRecovery = rec.status;
   } else if (kind === "header") {
     const r = inspectShieldHeader(buf.toString("utf8")); report = r;
     if (r.decoyHeader) { writeOut(output, headerTombstone()); report.action = "excluded-decoy-header"; }

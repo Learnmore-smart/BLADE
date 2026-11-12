@@ -198,7 +198,7 @@ export function scrubAsar(buf, opts = {}) {
         : f.path.slice(0, -4);
       const sibling = finalContent.get(siblingPath)
         ?? kept.find((k) => k.path === siblingPath)?.content;
-      const rec = reconstructSourceMap(f.honeyMapJson, sibling ? sibling.toString("utf8") : "", f.content.length);
+      const rec = reconstructSourceMap(f.honeyMapJson, sibling ? sibling.toString("utf8") : "", sibling ? sibling.length : undefined);
       content = Buffer.from(JSON.stringify(rec.map), "utf8");
     } else if (finalContent.has(f.path)) {
       content = finalContent.get(f.path);
