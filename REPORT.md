@@ -834,7 +834,26 @@ de-hardening bugs:
 - `sweepInjectedCalls` removes a statement only when every non-generic
   reference inside it resolves to injected machinery; a statement mixing
   `machinery(), real()` operands is *kept* deliberately (conservative —
-  a note flags it rather than risking real-code loss).
+  each one is listed under `report.mixedStatementsKept` with a preview
+  rather than risking real-code loss).
+
+### Round 13 — every artifact BLA emits is routed
+
+- `bla weave-plan` emits a `bla-weave-plan/v1` surgical-weave workorder
+  (agent-facing JSON; previously `unrecognized format`). Now routed to
+  the attestation tombstone with `weaveTargets` + `overallStatus`
+  surfaced; the real 3.2.4 output is a committed detect-corpus fixture.
+- `bla protect --in-place` verified end-to-end: 48 KB hardened `mod.js`
+  → 114 B clean, exports + constants intact, executes (`hi x 1.0`).
+- `bla protect <dir>` verified end-to-end: `util.py` byte-exact
+  (`def helper(x): return x*2`), `mod.js` recovered with semantic
+  renames. BLA globbed and re-hardened BLADE's own `*.blade-counter.js`
+  sidecar from a previous run — the hardened counter-shield (63 KB)
+  cleaned to 5.2 KB of real Frida script, i.e. BLADE de-hardens even a
+  BLA-wrapped BLADE artifact.
+- `--report` collision guard, extra-positional rejection, `-o` dir
+  creation, and Windows reserved-name rejection all verified against
+  real invocations.
 
 ## Verification
 
