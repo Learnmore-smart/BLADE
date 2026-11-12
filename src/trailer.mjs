@@ -2237,6 +2237,7 @@ export function inspectBlaManifest(buf) {
   const isSummary = schemaStr.startsWith("bla-harden-summary/");
   const isCoverage = schemaStr.startsWith("bla-integrity-coverage/");
   const isBindScope = schemaStr.startsWith("bla-bind-scope/");
+  const isWeavePlan = schemaStr.startsWith("bla-weave-plan/");
   return {
     format: "bla-manifest", hardened: true, decoy: true,
     schema: doc?.schema, signed: Boolean(doc?.signature && doc.signature !== "unsigned"),
@@ -2244,13 +2245,17 @@ export function inspectBlaManifest(buf) {
     ...(isSummary && Array.isArray(doc?.artifacts) ? { artifactsRecorded: doc.artifacts.length } : {}),
     ...(isCoverage && Array.isArray(doc?.nodes) ? { nodesRecorded: doc.nodes.length } : {}),
     ...(isBindScope && Array.isArray(doc?.domains) ? { domains: doc.domains.length } : {}),
-    note: isBindScope
-      ? "BLA public bind-scope contract — provenance metadata only (host/domain refusal rules), excluded from analysis corpus"
-      : isCoverage
-        ? "BLA self-seal integrity-coverage matrix — provenance metadata only (binding/digest records), excluded from analysis corpus"
-        : isSummary
-          ? "BLA harden-run summary — provenance metadata only (records which artifacts were hardened), excluded from analysis corpus"
-          : "BLA defense attestation manifest — provenance metadata only, excluded from analysis corpus",
+    ...(isWeavePlan && Array.isArray(doc?.targets) ? { weaveTargets: doc.targets.length } : {}),
+    ...(isWeavePlan && doc?.overallStatus ? { overallStatus: doc.overallStatus } : {}),
+    note: isWeavePlan
+      ? "BLA surgical weave workorder — provenance metadata only (agent weave instructions), excluded from analysis corpus"
+      : isBindScope
+        ? "BLA public bind-scope contract — provenance metadata only (host/domain refusal rules), excluded from analysis corpus"
+        : isCoverage
+          ? "BLA self-seal integrity-coverage matrix — provenance metadata only (binding/digest records), excluded from analysis corpus"
+          : isSummary
+            ? "BLA harden-run summary — provenance metadata only (records which artifacts were hardened), excluded from analysis corpus"
+            : "BLA defense attestation manifest — provenance metadata only, excluded from analysis corpus",
   };
 }
 export function blaManifestTombstone(schema = "defense-manifest-v1") {

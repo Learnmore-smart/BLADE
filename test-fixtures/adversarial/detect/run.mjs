@@ -24,6 +24,7 @@ const EXPECT = {
   "bsjb-deep.exe": "dotnet", "bsjb-early.exe": "dotnet",
   "bytecode-noext": "unknown", "cafebabe-random.bin": "native",
   "bind-scope.json": "bla-manifest", "bla-harden-summary.json": "bla-manifest",
+  "weave-plan.json": "bla-manifest",
   "capture-renamed.cap": "pcap", "capture.pcapng": "pcap",
   "cast-hardened.ts": "js", "class-renamed.bin": "jvm",
   "classic-be.pcap": "pcap", "classic-le.pcap": "pcap", "code.evm": "evm",
