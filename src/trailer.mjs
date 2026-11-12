@@ -2193,7 +2193,7 @@ export function inspectBunfsSnapshot(buf) {
   const latin = buf.toString("latin1");
   const report = {
     format: "bunfs-snapshot", hardened: true, decoy: true,
-    variant: end === buf.length ? "appended-trailer" : end ? "appended-trailer-sized" : "malformed",
+    variant: end && end === buf.length ? "appended-trailer" : end ? "appended-trailer-sized" : "malformed",
     markersHit: BUNFS_DECOY_MARKERS.filter((m) => latin.includes(m)),
     note: "BLA bun-standalone decoy module graph — entire file is honeypot surface, excluded from analysis corpus",
   };
