@@ -855,6 +855,25 @@ de-hardening bugs:
   creation, and Windows reserved-name rejection all verified against
   real invocations.
 
+### Round 14 — fuzzer-found crashes + module-level unit coverage
+
+- `scripts/fuzz-js.mjs` (856 checks, 400 seeded AST-level rounds)
+  found **two real crash paths** byte-fuzzing can't reach:
+  (1) duplicate block-scoped declarations are parse-tolerated but make
+  Babel's strict scope registration throw mid-traverse — now
+  pre-detected via a manual lexical walk and passed through with a
+  conflict note; (2) orphaned `TSTypeCastExpression`-shaped nodes
+  surviving partial removal defeated `@babel/generator` — both emission
+  sites now fall back to pristine-source passthrough.
+- `bla protect` verified live on two new surfaces: `.cjs` (106 KB →
+  161 B, `require` + HMAC exec parity) and HTML with inline JS
+  (69.7 KB → 141 B, `navigator.userAgent` intact).
+- Five new module-level unit suites pin real helper contracts:
+  `test-anomaly` (19), `test-evaluator` (18), `test-name-recovery` (19 —
+  found `recoverWasmExports(null)` throwing, fixed),
+  `test-precision` (24), `test-canonical` (11). verify-all is now
+  **32 suites**.
+
 ## Verification
 
 `node scripts/verify.mjs` — **38 checks, all passing**:
