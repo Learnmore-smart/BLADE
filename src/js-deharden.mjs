@@ -408,6 +408,7 @@ export function dehardenJs(source, { filename = "input.js" } = {}) {
     decryptedStrings: 0,
     renamedBindings: [],
     residualStatements: [],
+    mixedStatementsKept: [],
     recoveredStrings: new Set(),
     removedNameSamples: [],
     danglingRefs: [],
@@ -1283,10 +1284,16 @@ export function dehardenJs(source, { filename = "input.js" } = {}) {
       if (!path.isExpressionStatement() && !path.isIfStatement()) return;
       const refs = new Set();
       collectRefs(path.node, refs);
-      let hasInjected = false;
+      let hasInjected = false, mixed = false;
       for (const n of refs) {
         if (injectedNames.has(n) || removedHardNames.has(n)) { hasInjected = true; continue; }
-        if (programDeclared.has(n) && !matchesGeneric(n)) return;
+        if (programDeclared.has(n) && !matchesGeneric(n)) { mixed = true; break; }
+      }
+      if (mixed) {
+        // statement mixes injected machinery with real decls — conservative
+        // keep, but surface it so the report doesn't claim a clean sweep.
+        if (hasInjected) report.mixedStatementsKept.push({ type: path.node.type, preview: safeGen(path.node).slice(0, 100) });
+        return;
       }
       if (hasInjected) {
         report.prologueCallsRemoved++;
