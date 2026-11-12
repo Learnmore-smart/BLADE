@@ -2228,16 +2228,21 @@ export function sidecarNoteTombstone() {
 export function inspectBlaManifest(buf) {
   let doc = null;
   try { doc = JSON.parse(buf.toString("utf8")); } catch {}
+  const isSummary = String(doc?.schema ?? "").startsWith("bla-harden-summary/");
   return {
     format: "bla-manifest", hardened: true, decoy: true,
-    schema: doc?.schema, signed: Boolean(doc?.signature ?? doc?.signed),
-    note: "BLA defense attestation manifest — provenance metadata only, excluded from analysis corpus",
+    schema: doc?.schema, signed: Boolean(doc?.signature && doc.signature !== "unsigned"),
+    ...(isSummary && doc?.runId ? { runId: doc.runId } : {}),
+    ...(isSummary && Array.isArray(doc?.artifacts) ? { artifactsRecorded: doc.artifacts.length } : {}),
+    note: isSummary
+      ? "BLA harden-run summary — provenance metadata only (records which artifacts were hardened), excluded from analysis corpus"
+      : "BLA defense attestation manifest — provenance metadata only, excluded from analysis corpus",
   };
 }
-export function blaManifestTombstone() {
+export function blaManifestTombstone(schema = "defense-manifest-v1") {
   return `${JSON.stringify({
     schema: "blade-tombstone/v1",
-    removed: "defense-manifest-v1 attestation",
+    removed: `${schema} attestation`,
     reason: "BLA self-attestation — provenance metadata, nothing real to salvage",
   }, null, 2)}\n`;
 }

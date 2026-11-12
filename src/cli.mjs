@@ -220,9 +220,10 @@ function main() {
     const r = inspectSidecarNote(buf); report = r;
     writeOut(output, sidecarNoteTombstone()); report.action = "excluded-decoy-note";
   } else if (kind === "bla-manifest") {
-    // defend-mode attestation manifest — pure BLA provenance, tombstone it
+    // defend-mode attestation manifest / harden-run summary — pure BLA
+    // provenance, tombstone it
     const r = inspectBlaManifest(buf); report = r;
-    writeOut(output, blaManifestTombstone()); report.action = "excluded-attestation";
+    writeOut(output, blaManifestTombstone(r.schema)); report.action = "excluded-attestation";
   } else if (kind === "bla-config") {
     // BLA's own config sidecar — provenance evidence, keep verbatim + flag
     report = { blaConfig: true, note: "BLA protection config — sibling artifacts were likely BLA-processed" };

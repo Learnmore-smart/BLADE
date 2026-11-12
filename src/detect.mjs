@@ -102,11 +102,14 @@ export function detect(buf, ext) {
       if (JSON.parse(buf.toString("utf8"))?.schema === "bla-sidecar-entangle/v1") return "sidecar-note";
     } catch {}
   }
-  // `bla defend` attestation manifest — fixed schema URL marker; provenance
-  // evidence, routed by content so renamed copies still surface.
-  if (buf.length && buf[0] === 0x7b && buf.includes(Buffer.from("defense-manifest-v1", "utf8"))) {
+  // `bla defend` attestation manifest / `bla harden` run summary — fixed
+  // schema markers; provenance evidence, routed by content so renamed copies
+  // still surface. Both carry only run records (no program logic).
+  if (buf.length && buf[0] === 0x7b &&
+      (buf.includes(Buffer.from("defense-manifest-v1", "utf8")) || buf.includes(Buffer.from("bla-harden-summary/", "utf8")))) {
     try {
-      if (String(JSON.parse(buf.toString("utf8"))?.schema ?? "").includes("defense-manifest-v1")) return "bla-manifest";
+      const schema = String(JSON.parse(buf.toString("utf8"))?.schema ?? "");
+      if (schema.includes("defense-manifest-v1") || schema.startsWith("bla-harden-summary/")) return "bla-manifest";
     } catch {}
   }
   // text formats by extension
