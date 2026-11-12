@@ -451,6 +451,7 @@ export function dehardenJs(source, { filename = "input.js" } = {}) {
       report.appendedPayload = payload;
       report.note = `no BLA markers; embedded payload signature '${payload.kind}' @${payload.offset} — kept verbatim`;
     }
+    if (!report.note) report.note = "no BLA markers found — passthrough";
     report.bytesOut = source.length;
     return { code: source, report };
   }

@@ -28,6 +28,7 @@ const SUITES = [
   ["fuzz-wasm", "scripts/fuzz-wasm.mjs", false],
   ["leb", "scripts/test-leb.mjs", false],
   ["ev-fold", "scripts/test-ev-fold.mjs", false],
+  ["deharden-api", "scripts/test-deharden-api.mjs", false],
   ["detect-corpus", "test-fixtures/adversarial/detect/run.mjs", false],
   ["robustness", "scripts/robustness.mjs", false],
   ["js", "test-fixtures/adversarial/js/run-adversarial.mjs", true],
