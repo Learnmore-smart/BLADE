@@ -69,6 +69,16 @@ function main() {
   };
   const VALUE_FLAGS = new Set(["-o", "--report", "--format"]);
   const FLAG_SET = new Set(["-o", "--report", "--format", "--quiet", "--verbose", "--dry-run", "--help", "-h", "--version", "-"]);
+  if (args.includes("--quiet") && args.includes("--verbose")) {
+    console.error("blade: --quiet and --verbose are mutually exclusive");
+    process.exit(2);
+  }
+  for (const f of ["-o", "--report", "--format"]) {
+    if (args.indexOf(f) !== args.lastIndexOf(f)) {
+      console.error(`blade: ${f} given twice — ambiguous`);
+      process.exit(2);
+    }
+  }
   for (const a of args) {
     if (a.startsWith("-") && a !== "-" && !FLAG_SET.has(a)) {
       console.error(`blade: unknown flag ${a}\n\n${USAGE}`);
