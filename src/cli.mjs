@@ -283,7 +283,7 @@ function main() {
     report = { blaConfig: true, note: "BLA protection config — sibling artifacts were likely BLA-processed" };
     writeOut(output, buf); report.action = "kept-provenance";
   } else {
-    console.error(`unrecognized format: ${input}`);
+    console.error(`unrecognized format: ${input}${stdin ? " (stdin carries no filename — use --format <kind>)" : ""}`);
     process.exit(1);
   }
 
