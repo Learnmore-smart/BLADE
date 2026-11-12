@@ -874,6 +874,55 @@ de-hardening bugs:
   `test-precision` (24), `test-canonical` (11). verify-all is now
   **32 suites**.
 
+### Round 15 — polyglot reporting + TypeScript live verification
+
+- **Polyglot payload detection**: marker-free `.js` files carrying
+  appended binary payloads (zip/elf/wasm/dex signatures past offset 0)
+  are now reported as polyglots via `sniffEmbeddedPayload` —
+  `no BLA markers; embedded payload signature 'zip' @N — kept verbatim`
+  instead of a silent passthrough. Bytes preserved either way.
+  CLI fix: the generic passthrough note no longer clobbers more
+  specific notes. Corpus: `polyglot-{zip,elf,wasm}.js`.
+- **TypeScript routes verified live**: real `bla-agents protect` on
+  `.ts` (stealth) and `.mts` (maximum) — 74.7 KB → 34 B and
+  103.5 KB → 79 B cleaned, default-export semantics preserved through
+  BLA's plausible renames (`v`→`record`).
+- **Coverage closeout**: `test-manifest` (23), `test-salvage` (28),
+  `test-gates` (31 incl. `sniffEmbeddedPayload`), `test-sidecar` (17),
+  `test-fuses` (18), `test-leb` (16), `test-ev-fold` (84),
+  `test-deharden-api` (25), `test-shield-matrix` (63),
+  `test-text-scrub` (15) — every one found a real contract detail
+  (empty-buffer variant misclassification, decoy-wire expectations,
+  `{ev}` destructure, NaN identity).
+- **Structural fuzzers**: `fuzz-asar` (255 — traversal members,
+  blockSize abuse, offset coercion), `fuzz-plist` (239 — XML key/dict
+  mutations), `fuzz-wasm` (608 — section-level corruption on the real
+  hardened `seal.wasm`).
+- **Fixes**: `detectEvmPad(null)` default-param crash;
+  `inspectBunfsSnapshot(empty)` variant misclassification;
+  `--format` kind list in `--help` + `bla-config` in `KNOWN_KINDS`;
+  `report.dryRun` now global across routes; `stdin`-unknown suggests
+  `--format`; `readU32Leb`/`writeU32Leb` promoted to public API.
+
+### Round 16 — content rescue sniffs + behavioral parity
+
+- **Renamed artifacts route by content**: four rescue sniffs added at
+  the end of `detect()` (only after every magic+extension route fails):
+  `emit-headers` decoys (`BLA_SHIELD_H` + `enclave_tarpit_`), sourcemap
+  spec shape (v3 + `sources[]` + `mappings`), HTML doctype/html openers,
+  XML plist declarations. Renamed corpus fixtures: `header-renamed.txt`,
+  `map-renamed.bin`, `page-renamed.dat`, `plist-renamed.dat`. Corpus at
+  **99 fixtures × route+cli = 198/198**.
+- **Realistic-module behavioral parity**: a 523 B multi-export module
+  (`VERSION`, `Store` class with `#state`, `boot()`, `fetchAll()`)
+  hardened at maximum to 106.9 KB → BLADE cleaned to 622 B with full
+  runtime parity — private fields, async fetches, every export live.
+  BLA's plausible renames (`urls`→`arg`, `boot`→`helper`, `u`→`item`)
+  remain — honest ceiling, documented.
+- `emitRuntimeCounterShield` hint→family matrix fully pinned: all 53
+  regex anchors across 7 families resolve, benign hints fire nothing,
+  empty input emits the conservative full surface.
+
 ## Verification
 
 `node scripts/verify.mjs` — **38 checks, all passing**:

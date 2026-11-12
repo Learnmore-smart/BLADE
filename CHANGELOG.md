@@ -24,8 +24,38 @@ All notable changes to BLADE are documented here. The format follows
 - CI: 5 → 10 gated steps (detect corpus, unit suites, fuzzer, asar,
   idempotency).
 
+### Added
+
+- `sniffEmbeddedPayload` — marker-free `.js` files with appended
+  zip/elf/wasm/dex payloads are reported as polyglots (kind + offset,
+  bytes kept verbatim) instead of silently passing through.
+- Content rescue sniffs in `detect()` for renamed artifacts:
+  `emit-headers` decoys (`BLA_SHIELD_H` + `enclave_tarpit_`), sourcemap
+  spec shape, HTML doctype/html openers, XML plist declarations.
+  4 renamed corpus fixtures; corpus at 99 fixtures / 198 checks.
+- `readU32Leb`/`writeU32Leb` exported — bounds-safe ULEB128 primitives
+  (5-byte cap, EOF-tolerant read returning [value, endOffset]).
+- `report.dryRun` — global flag on every route under `--dry-run`.
+- `report.appendedPayload` on marker-free JS polyglot passthroughs.
+- Unit suites: `test-manifest` (23), `test-salvage` (28),
+  `test-gates` (31), `test-sidecar` (17), `test-fuses` (18),
+  `test-leb` (16), `test-ev-fold` (84), `test-deharden-api` (25),
+  `test-shield-matrix` (63), `test-text-scrub` (15).
+- Structural fuzzers: `fuzz-asar` (255), `fuzz-plist` (239),
+  `fuzz-wasm` (608). verify-all now gates **45 suites**.
+- `--format` kind list printed in `--help`; `bla-config` added to
+  `KNOWN_KINDS`; stdin-"unknown" error suggests `--format`.
+
 ### Fixed
 
+- `detectEvmPad(null)` crashed on the default parameter before the
+  null guard evaluated.
+- `inspectBunfsSnapshot(empty)` classified as `appended-trailer`
+  (`end===0===length`) — now `malformed`.
+- CLI no longer overwrites specific non-hardened notes (unparseable,
+  embedded payload) with the generic passthrough note.
+- `dehardenJs` emits the generic passthrough note itself so library
+  consumers get it, not just the CLI.
 - `dehardenJs` no longer throws `TypeError: Duplicate declaration` on
   parse-tolerated conflicting block-scoped decls (pre-detected via a
   manual lexical walk; legal `var` redecls still pass through).
