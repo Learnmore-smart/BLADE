@@ -26,6 +26,7 @@ const SUITES = [
   ["sidecar", "scripts/test-sidecar.mjs", false],
   ["fuses", "scripts/test-fuses.mjs", false],
   ["fuzz-wasm", "scripts/fuzz-wasm.mjs", false],
+  ["leb", "scripts/test-leb.mjs", false],
   ["detect-corpus", "test-fixtures/adversarial/detect/run.mjs", false],
   ["robustness", "scripts/robustness.mjs", false],
   ["js", "test-fixtures/adversarial/js/run-adversarial.mjs", true],

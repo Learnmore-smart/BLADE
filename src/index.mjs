@@ -12,6 +12,7 @@ export { detect } from "./detect.mjs";
 export { dehardenJs, looksBlaHardened, sniffEmbeddedPayload } from "./js-deharden.mjs";
 export {
   scrubAsar, scrubWasm, scrubSqlite, scrubSafetensors, scrubGguf,
+  readU32Leb, writeU32Leb,
 } from "./formats.mjs";
 export {
   scrubNative, scrubDex, scrubIl2cpp, scrubDotnet, scrubEvm, scrubPtx,

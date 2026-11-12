@@ -50,6 +50,9 @@ export function scrubWasm(buf: Buffer): BufferResult;
 /** Path-based: WAL sidecars require a real fs path. */
 export function scrubSqlite(inputPath: string, outputPath: string): { report: ScrubReport };
 export function scrubSafetensors(buf: Buffer): BufferResult;
+/** ULEB128 primitives (bounds-safe read returns [value, endOffset]). */
+export function readU32Leb(buf: Buffer, off: number): [number, number];
+export function writeU32Leb(n: number): Buffer;
 export function scrubGguf(buf: Buffer): BufferResult;
 
 export function scrubNative(buf: Buffer): BufferResult;

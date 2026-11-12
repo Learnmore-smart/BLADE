@@ -286,7 +286,7 @@ export function scrubAsar(buf, opts = {}) {
 // section) and floods the export table with `enclave_export_*` decoys so REA's
 // interface representation budget blows up. Drop decoy custom sections, filter
 // decoy exports, rebuild a tight module.
-function readU32Leb(buf, off) {
+export function readU32Leb(buf, off) {
   let v = 0, shift = 0, i = off;
   for (;;) {
     if (i >= buf.length || i - off >= 5) return [v >>> 0, i]; // bounds + 5-byte cap
@@ -296,7 +296,7 @@ function readU32Leb(buf, off) {
     shift += 7;
   }
 }
-function writeU32Leb(n) {
+export function writeU32Leb(n) {
   const out = [];
   let v = n >>> 0;
   do { let b = v & 0x7f; v >>>= 7; if (v) b |= 0x80; out.push(b); } while (v);
