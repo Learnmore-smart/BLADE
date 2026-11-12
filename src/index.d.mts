@@ -80,8 +80,8 @@ export function inspectBunfsSnapshot(buf: Buffer): InspectReport;
 export function bunfsTombstone(): string;
 export function inspectSidecarNote(buf: Buffer): InspectReport;
 export function sidecarNoteTombstone(): string;
-export function inspectBlaManifest(buf: Buffer): InspectReport & { schema?: string; signed?: boolean };
-export function blaManifestTombstone(): string;
+export function inspectBlaManifest(buf: Buffer): InspectReport & { schema?: string; signed?: boolean; runId?: string; artifactsRecorded?: number };
+export function blaManifestTombstone(schema?: string): string;
 
 // ---- recovery/canonical ----
 export interface FuseRecoveryResult {

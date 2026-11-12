@@ -154,6 +154,8 @@ Every BLA shield family, and what BLADE does about it — verified by the advers
 | **Deception suffix** (mirage/honeypot/decoy IPC/crash decoys + `void[…]` index) | Suffix removed wholesale; interleaved real statements kept | **bypassed** |
 | **Honey source maps / armor comments** | Map flagged, honey sources stripped; `reconstructSourceMap` emits valid annotated v3 map over dehardened JS | **reconstructed** (original mappings destroyed — honest note) |
 | **ASAR header amplification + entry flood** | Pickle parse, `enclave/`+`.bla/` namespaces dropped, inner JS de-hardened, per-entry **SHA-256 integrity recomputed** | **bypassed** — 17.4 MB → 532 B header, 4003→2 entries |
+| **ASAR honey `.map` members** | BLA replaces `.map` members wholesale (`enclave://tee-runtime/` maps); members deharden first, then each honey map is rebuilt as an identity map over its sibling's final bytes | **reconstructed** |
+| **BLA provenance sidecars** (`.bla-manifest.json`, `bla-harden-summary.json`, `.blarc`/`bla.config.json`) | Content-detected by schema markers; manifests/summaries tombstoned (`runId` + artifact count reported), configs kept + flagged | **routed** |
 | **WASM custom-section + export flood** | `bla.*`/`enclave.*` sections dropped, decoy exports filtered, module rebuilt; `recoverWasmExports` emits a valid `name` section | **bypassed + name-recovered** |
 | **SQLite honey schema** | Honey tables/views/trap-columns dropped, row-bait density rule, dangling-reference fixpoint, `VACUUM` | **bypassed** — business rows intact |
 | **Model metadata nesting** (`enclave.nesting.breaker`, `enclave_topology_seal`) | Marker-valued keys dropped; real `enclave_*`-named tensors survive | **bypassed** |
@@ -230,13 +232,13 @@ Where BLA destroyed or mutated information in place, `src/recovery/` provides th
 
 ## 🧪 Adversarial Fixture Standings
 
-**Live end-to-end proof** — `scripts/live-matrix.mjs` runs real `bla-agents@3.2.4 protect` on freshly generated plain artifacts, cleans with BLADE, and verifies recovery. Current result across **all four intensities** (stealth, balanced, maximum, bankrupt): **370/370 checks pass** — byte-exact restore on 10+ append-only formats, marker-free + behavior-identical on the rest, with `license-core.js` still executing `validate → valid:true, enterprise-unlimited` after cleaning. The matrix also exercises **double-hardening** (`protect` output fed back through `protect`) on the JS/WASM artifacts — cleaned 2x output executes identically with zero machinery residue — and BLA's own `audit` scores cleaned JS **93/100 UNPROTECTED** (hardened input: 2/100). Triple-harden spot-checks: `Main.class`, `classes.dex`, `app.pyc`, `kernel.ptx`, `token.evm` byte-exact; `seal.wasm` reaches the documented name-destruction ceiling (code/type sections byte-identical).
+**Live end-to-end proof** — `scripts/live-matrix.mjs` runs real `bla-agents@3.2.4 protect` on freshly generated plain artifacts, cleans with BLADE, and verifies recovery. Current result across **all four intensities** (stealth, balanced, maximum, bankrupt): **370/370 checks pass** (**378/378** with `--audit`) — byte-exact restore on 10+ append-only formats, marker-free + behavior-identical on the rest, with `license-core.js` still executing `validate → valid:true, enterprise-unlimited` after cleaning. The matrix also exercises **double-hardening** (`protect` output fed back through `protect`) on the JS/WASM artifacts — cleaned 2x output executes identically with zero machinery residue — and BLA's own `audit` scores cleaned JS **93/100 UNPROTECTED** (hardened input: 2/100). Triple-harden spot-checks: `Main.class`, `classes.dex`, `app.pyc`, `kernel.ptx`, `token.evm` byte-exact; `seal.wasm` reaches the documented name-destruction ceiling (code/type sections byte-identical).
 
 Hand-built hostile inputs in `test-fixtures/adversarial/` exercise every distinguisher — polyglots, double-hardening, name collisions, marker-in-content traps, malformed inputs:
 
 | Suite | Result | Notes |
 | :--- | :--- | :--- |
-| **Live matrix** `scripts/live-matrix.mjs` | **370/370** | real BLA 3.2.4 × 4 intensities × ~25 artifacts + double-harden + `bla audit` |
+| **Live matrix** `scripts/live-matrix.mjs` | **370/370** (378/378 `--audit`) | real BLA 3.2.4 × 4 intensities × ~25 artifacts + double-harden + `bla audit`/`verify` |
 | Intensity corpus `intensity/run.mjs` | **63/63** | byte-exact/behavioral at all levels |
 | Core `scripts/verify.mjs` | **37/37** | byte-exact + behavioral equivalence |
 | ASAR | **29/29** | pickle edge cases, unpacked entries, proto-pollution |
