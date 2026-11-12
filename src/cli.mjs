@@ -111,6 +111,15 @@ function main() {
     process.exit(2);
   }
   const output = oIdx !== -1 ? args[oIdx + 1] : input.replace(/(\.[^.]*)?$/, ".cleaned$1");
+  // Windows reserved device names: `-o nul`/`NUL.txt`/`con` creates an
+  // undeletable file or writes to the console device. Reject stem matches.
+  {
+    const stem = basename(output).split(".")[0];
+    if (/^(nul|con|prn|aux|com[1-9]|lpt[1-9])$/i.test(stem)) {
+      console.error(`blade: '${output}' is a Windows reserved device name — choose another output path`);
+      process.exit(2);
+    }
+  }
 
   // kind → { scrub } — the buf-based formats share one dispatch shape:
   // run the scrubber, keep its report, write `buffer` (binary) or `code` (text).

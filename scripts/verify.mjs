@@ -344,6 +344,15 @@ check("--format override beats detection", () => {
     { input: readFileSync(path.join(HARD, "token.evm")), stdio: "pipe" });
   assert.equal(JSON.parse(out.toString()).format, "evm");
 });
+check("-o <reserved-name> rejected (nul/con/prn/aux/comN/lptN)", () => {
+  for (const name of ["nul", "CON.txt", "aux", "com3", "lpt1"]) {
+    try {
+      execFileSync(process.execPath, [path.join(ROOT, "src", "cli.mjs"),
+        path.join(HARD, "token.evm"), "-o", name], { stdio: "pipe" });
+      assert.fail(`should have exited 2 for ${name}`);
+    } catch (e) { assert.equal(e.status, 2, `exit for ${name}`); }
+  }
+});
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
