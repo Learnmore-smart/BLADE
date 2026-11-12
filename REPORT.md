@@ -765,6 +765,15 @@ ASAR `integrity` headers added by `harden`, BLA re-protect refusals.
   scans clean of `enclave`/`BLA-`/`canary`/`tee-runtime`/machinery
   strings — the only remaining hits are BLADE's own `x_blade_*`
   annotations.
+- **REA MCP A/B (this session, live server)**: `analyze_javascript_application`
+  on the 18 MB hardened `app.asar` **crashed the REA MCP server**
+  (disconnect — BLA's budget exhaustion working as designed); on the
+  884 B BLADE-cleaned asar the same call returned a full
+  `JavaScriptApplicationGraph` — real `ipc-channel`
+  (`notion:clipboard:read-rich`, literal resolution), `context-bridge-api`
+  (`notionClipboard` → `readRichBlocks`/`writeRichBlocks`), resolved
+  `electron-main` entrypoint, `integrity_contradictions: []`, and the
+  identical `evidence_id` reproducibly after server recovery.
 
 ## Verification
 
