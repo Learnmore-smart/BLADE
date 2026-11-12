@@ -179,7 +179,7 @@ function main() {
     // passthrough must be byte-exact — re-encoding the utf8 string would
     // silently damage non-UTF8 payloads (latin-1 bytes, UTF-16 blobs).
     writeOut(output, r.code === src ? buf : r.code);
-    if (!r.report.hardened) report.note = "no BLA markers found — passthrough";
+    if (!r.report.hardened && !report.note) report.note = "no BLA markers found — passthrough";
   } else if (kind === "asar") {
     // `unpacked` entries live in the sibling <input>.unpacked/ dir — feed them
     // in for integrity checks and re-emit whatever survives to

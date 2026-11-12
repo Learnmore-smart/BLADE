@@ -388,6 +388,21 @@ function numTableInit(init) {
  * @param {{ filename?: string }} [opts]
  * @returns {{ code: string, report: object }}
  */
+/** Scan (decoded) source for an embedded binary payload signature —
+ *  zip/elf/wasm/dex magics that survive UTF-8 decoding past offset 0.
+ *  Used to flag text+binary polyglots that carry no BLA evidence.
+ *  @param {string} source @returns {{kind:string,offset:number}|null} */
+export function sniffEmbeddedPayload(source) {
+  const sigs = [
+    ["zip", "PK\x03\x04"], ["elf", "\x7fELF"], ["wasm", "\x00asm"], ["dex", "dex\n035"],
+  ];
+  for (const [kind, sig] of sigs) {
+    const at = source.indexOf(sig);
+    if (at > 0) return { kind, offset: at };
+  }
+  return null;
+}
+
 export function dehardenJs(source, { filename = "input.js" } = {}) {
   const report = {
     filename,
@@ -428,6 +443,14 @@ export function dehardenJs(source, { filename = "input.js" } = {}) {
   // other machinery — without this prefilter a bind-scope-only file passthroughs.
   const mayBindScope = source.includes("BLA_BIND_SCOPE_CHECK") || source.includes("BLA bind-scope:");
   if (!report.hardened && !mayPreamble && !maySelfSeal && !mayStringStub && !mayBindScope) {
+    // Polyglot probe: a .js file with no BLA evidence may still be a
+    // text+binary polyglot — surface the appended payload signature so the
+    // report isn't a silent "no markers" on unparseable binary tails.
+    const payload = sniffEmbeddedPayload(source);
+    if (payload) {
+      report.appendedPayload = payload;
+      report.note = `no BLA markers; embedded payload signature '${payload.kind}' @${payload.offset} — kept verbatim`;
+    }
     report.bytesOut = source.length;
     return { code: source, report };
   }

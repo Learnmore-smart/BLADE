@@ -35,6 +35,8 @@ export function dehardenJs(
   source: string,
   opts?: { filename?: string },
 ): CodeResult;
+/** Flag an embedded binary payload signature in decoded text (polyglots). */
+export function sniffEmbeddedPayload(source: string): { kind: string; offset: number } | null;
 
 export interface AsarOptions {
   /** Supply `<input>.unpacked/` sibling content for integrity checks. */

@@ -9,7 +9,7 @@
 //   - never destroys data it cannot prove is armor — ambiguous evidence is
 //     kept and flagged in the report (suspicious*/flagged* fields).
 export { detect } from "./detect.mjs";
-export { dehardenJs, looksBlaHardened } from "./js-deharden.mjs";
+export { dehardenJs, looksBlaHardened, sniffEmbeddedPayload } from "./js-deharden.mjs";
 export {
   scrubAsar, scrubWasm, scrubSqlite, scrubSafetensors, scrubGguf,
 } from "./formats.mjs";

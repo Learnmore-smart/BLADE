@@ -47,6 +47,7 @@ const EXPECT = {
   "mod.py": "py", "nano-le.pcap": "pcap", "notes.txt": "unknown",
   "one.bin": "unknown", "page.html": "html", "pe-plain.exe": "native",
   "plain.cts": "js", "plain.jsx": "js", "plain.mts": "js", "plain.ts": "js",
+  "polyglot-zip.js": "js", "polyglot-elf.js": "js", "polyglot-wasm.js": "js",
   "real.db": "sqlite", "real.safetensors": "safetensors",
   "sqlite-magic-garbage.db": "sqlite", "sqlite-magic-nonul.db": "sqlite",
   "tiny.dex": "dex", "tiny.gguf": "gguf", "tiny.safetensors": "safetensors",

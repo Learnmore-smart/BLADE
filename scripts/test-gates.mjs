@@ -2,7 +2,7 @@
 // Unit checks for the gate helpers — the structural predicates that
 // decide whether a file gets scrubbed or passes through untouched.
 import { readFileSync } from "node:fs";
-import { looksBlaHardened } from "../src/js-deharden.mjs";
+import { looksBlaHardened, sniffEmbeddedPayload } from "../src/js-deharden.mjs";
 import { looksLikeZip, jvmClassLooksValid, inspectSourcemap, inspectShieldHeader } from "../src/trailer.mjs";
 
 let pass = 0, fail = 0;
@@ -111,6 +111,20 @@ extern void enclave_tarpit_fn_0(void);
 {
   const r = inspectShieldHeader("");
   ok(r.decoyHeader === false && r.markersHit.length === 0, "empty -> not decoy");
+}
+
+// --- sniffEmbeddedPayload ---------------------------------------------------
+{
+  ok(sniffEmbeddedPayload("const x=1;") === null, "clean js -> null");
+  ok(sniffEmbeddedPayload("") === null, "empty -> null");
+  const zip = sniffEmbeddedPayload("const x=1;\nPK\x03\x04junk");
+  ok(zip?.kind === "zip" && zip.offset === 11, "zip polyglot -> zip@11");
+  const elf = sniffEmbeddedPayload("code();\n\x7fELF\x02\x01");
+  ok(elf?.kind === "elf", "elf polyglot -> elf");
+  const wasm = sniffEmbeddedPayload("code();\n\x00asm\x01\x00\x00\x00");
+  ok(wasm?.kind === "wasm", "wasm polyglot -> wasm");
+  // magic at offset 0 is a real binary, not an embedded payload
+  ok(sniffEmbeddedPayload("PK\x03\x04lead") === null, "leading magic -> null");
 }
 
 console.log(`${pass} passed, ${fail} failed`);
