@@ -1210,7 +1210,10 @@ function opsNameTailHint(name) {
  * @returns {{ names: Array<object>, nameSection?: Buffer }}
  */
 export function recoverWasmExports(wasm) {
-  if (!Buffer.isBuffer(wasm)) wasm = Buffer.from(wasm);
+  if (wasm == null) return { names: [], note: "no input — passthrough" };
+  if (!Buffer.isBuffer(wasm)) {
+    try { wasm = Buffer.from(wasm); } catch { return { names: [], note: "unconvertible input — passthrough" }; }
+  }
   if (wasm.length < 8 || wasm.readUInt32LE(0) !== 0x6d736100) {
     return { names: [], note: "bad magic — passthrough" };
   }
