@@ -35,6 +35,10 @@ usage: node src/cli.mjs <input> [-o output] [--report out.json] [--quiet] [--ver
 options:
   -o <path>          output path (default: <input>.cleaned<ext>)
   --format <kind>    force a scrubber route instead of detect()
+                     (kinds: js, asar, wasm, sqlite, safetensors, gguf, native,
+                      dex, il2cpp, dotnet, evm, ptx, jvm, plist, pcap, pcapng,
+                      uf2, beam, pyc, zip, py, html, sourcemap, header,
+                      bunfs-snapshot, sidecar-note, bla-manifest, bla-config)
   --report <path>    write the full JSON report to <path> ("-" = stdout)
   --quiet            suppress the report dump on stdout
   --verbose          never truncate the report on stdout
@@ -119,7 +123,7 @@ function main() {
   // buffer in place, so hashing after dispatch would report corrupted bytes.
   const inputSha256 = createHash("sha256").update(buf).digest("hex");
   const ext = stdin ? "" : extname(input).toLowerCase();
-  const KNOWN_KINDS = new Set(["js", "asar", "wasm", "sqlite", "safetensors", "gguf", "native", "dex", "il2cpp", "dotnet", "evm", "ptx", "jvm", "plist", "pcap", "pcapng", "uf2", "beam", "pyc", "zip", "py", "html", "sourcemap", "header", "bunfs-snapshot", "sidecar-note", "bla-manifest"]);
+  const KNOWN_KINDS = new Set(["js", "asar", "wasm", "sqlite", "safetensors", "gguf", "native", "dex", "il2cpp", "dotnet", "evm", "ptx", "jvm", "plist", "pcap", "pcapng", "uf2", "beam", "pyc", "zip", "py", "html", "sourcemap", "header", "bunfs-snapshot", "sidecar-note", "bla-manifest", "bla-config"]);
   const KIND_ALIASES = { pcapng: "pcap" }; // same scrubber handles both magics
   let kind;
   if (fIdx !== -1) {
