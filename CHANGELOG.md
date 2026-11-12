@@ -5,6 +5,39 @@ All notable changes to BLADE are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `scripts/fuzz-js.mjs` — 400-round seeded AST-level mutation fuzzer for
+  the JS de-hardener (statement splice/dup, vocabulary injection, fake
+  bind-scope IIFEs, opaque-guard wraps, mid-token truncation). Contract:
+  never throw, shaped result, output parses when input parses.
+- `scripts/test-anomaly.mjs`, `test-evaluator.mjs`,
+  `test-name-recovery.mjs`, `test-precision.mjs`, `test-canonical.mjs` —
+  91 module-level unit checks over the scoring/repair/recovery helpers.
+- `report.mixedStatementsKept` (+ `mixedStatementsKeptTruncated`) —
+  conservative mixed injected+real statement keeps are now listed with
+  previews (capped at 200).
+- `bla-weave-plan/v1` workorder detection → bla-manifest tombstone with
+  `weaveTargets`/`overallStatus`.
+- Robustness crash-regression probes for the duplicate block-scoped
+  declaration traverse crash (top-level/nested/destructured shapes).
+- CI: 5 → 10 gated steps (detect corpus, unit suites, fuzzer, asar,
+  idempotency).
+
+### Fixed
+
+- `dehardenJs` no longer throws `TypeError: Duplicate declaration` on
+  parse-tolerated conflicting block-scoped decls (pre-detected via a
+  manual lexical walk; legal `var` redecls still pass through).
+- Both `generate` emission sites fall back to pristine-source passthrough
+  on adversarial node shapes instead of throwing.
+- `recoverWasmExports(null)` no longer throws (the last exported helper
+  that could crash on degenerate input).
+- `index.d.mts`: six drifted declaration shapes corrected
+  (`scoreSqliteObjects`, `beamLoneDecoyScore`, `neutralizePyLiteralMarkers`,
+  `detectOpaqueSeedVariants`, `RuntimeCounterShield`, `makeEvaluator`,
+  `inspectBlaManifest`, `DetectedKind`).
+
 ### Security
 
 - Self-hardening pass over every parser and the CLI (hostile artifacts are
