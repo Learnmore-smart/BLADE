@@ -1,0 +1,17 @@
+{
+  "schema": "bla-integrity-coverage/v1",
+  "nodes": [
+    "license-core.js",
+    "license-core.js#site0",
+    "license-core.js#site1"
+  ],
+  "edges": {
+    "license-core.js#site0": [],
+    "license-core.js#site1": []
+  },
+  "expectedSha256": {
+    "license-core.js": "97e0811003eb136720a496a0e8bf21e16cc36e26b1c690cadfad25281ac77b8f",
+    "license-core.js#site0": "97e0811003eb136720a496a0e8bf21e16cc36e26b1c690cadfad25281ac77b8f",
+    "license-core.js#site1": "97e0811003eb136720a496a0e8bf21e16cc36e26b1c690cadfad25281ac77b8f"
+  }
+}
