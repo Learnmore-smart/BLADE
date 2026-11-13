@@ -145,4 +145,5 @@ for (const c of cases) {
   console.log("=== " + c.name + " ===");
   console.log(JSON.stringify(c, null, 1));
 }
+mkdirSync(join(HERE, "reports"), { recursive: true });
 writeFileSync(join(HERE, "reports", "results.json"), JSON.stringify(cases, null, 2));
